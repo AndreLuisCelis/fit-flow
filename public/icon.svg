@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="128" fill="#0A0F1D"/>
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#1E293B" stroke-width="12"/>
+  <!-- Kinetic Volt Bolt & Dumbbell Symbol -->
+  <path d="M280 80 L180 260 L260 260 L232 432 L340 230 L260 230 Z" fill="#CCFF00" filter="drop-shadow(0 0 20px rgba(204, 255, 0, 0.6))"/>
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#38BDF8" stroke-width="4" stroke-dasharray="16 12" opacity="0.4"/>
+</svg>

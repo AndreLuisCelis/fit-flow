@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Space Grotesk', -apple-system, sans-serif;
+    --font-body: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --color-volt: #CCFF00;
+    --color-blaze: #FF6B00;
+    --color-cyan-ai: #38BDF8;
+    --color-arc-violet: #8B5CF6;
+    
+    --bg-canvas: #0A0F1D;
+    --bg-surface: #0F172A;
+    --bg-card: #1E293B;
+    --bg-card-subtle: #161b2a;
+    --bg-hover: #334155;
+    
+    --text-primary: #F8FAFC;
+    --text-muted: #94A3B8;
+    --text-dim: #64748B;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-mono-numbers {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Kinetic Athletic Glows */
+.shadow-glow-volt {
+  box-shadow: 0 0 16px rgba(204, 255, 0, 0.35);
+}
+
+.shadow-glow-volt-lg {
+  box-shadow: 0 0 30px rgba(204, 255, 0, 0.45);
+}
+
+.shadow-glow-blaze {
+  box-shadow: 0 0 16px rgba(255, 107, 0, 0.35);
+}
+
+.shadow-glow-cyan {
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+}
+
+.shadow-glow-purple {
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.35);
+}
+
+/* Subtle carbon grid texture */
+.bg-carbon-mesh {
+  background-image: radial-gradient(rgba(204, 255, 0, 0.04) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0F1D;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

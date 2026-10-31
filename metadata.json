@@ -1,0 +1,6 @@
+{
+  "name": "Kinetic Volt Performance",
+  "description": "High-octane athletic strength and hypertrophy tracker with cyber-kinetic telemetry, real-time set logging, and gamified progressive overload.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
