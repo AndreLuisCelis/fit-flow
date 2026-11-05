@@ -1,3 +1,5 @@
+import { TrainingEquipment } from './profile';
+
 export type MuscleGroup = 
   | 'chest'
   | 'back'
@@ -33,13 +35,16 @@ export interface Exercise {
   namePt: string;
   primaryMuscle: MuscleGroup;
   secondaryMuscles?: MuscleGroup[];
-  category: 'barbell' | 'dumbbell' | 'cable' | 'machine' | 'bodyweight';
+  category: 'barbell' | 'dumbbell' | 'cable' | 'machine' | 'bodyweight' | 'bands';
   defaultSets: number;
   defaultReps: number;
   defaultWeight: number; // in kg
   restSeconds: number;
+  equipmentRequired?: TrainingEquipment[];
   notes?: string;
+  notesPt?: string;
   tempo?: string; // e.g. "3-1-1-0"
+  guide?: any; // ExerciseGuide from presetRoutines
 }
 
 export interface ExerciseInRoutine {

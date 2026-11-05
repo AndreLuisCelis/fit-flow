@@ -18,7 +18,9 @@ import {
   FileText
 } from 'lucide-react';
 import { ActiveWorkoutSession, SetEntry, MuscleGroup } from '../types/workout';
+import { ExerciseGuideCard } from './ExerciseGuideCard';
 import { MuscleDiagram } from './MuscleDiagram';
+import { getMuscleLabel } from '../utils/localization';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,10 +55,18 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
 
   const currentExerciseItem = session.exercises[session.currentExerciseIndex];
   if (!currentExerciseItem) {
-    return <div className="text-white p-8">No exercise found in current session.</div>;
+    return <div className="text-white p-8">{language === 'pt' ? 'Nenhum exercício encontrado nesta sessão.' : 'No exercise found in current session.'}</div>;
   }
 
   const { exercise, sets } = currentExerciseItem;
+
+  {/* Exercise Guide Card - appears at the top of the session */}
+  <div className="mb-4">
+    <ExerciseGuideCard
+      exercise={exercise}
+      language={language}
+    />
+  </div>
 
   // Convert kg to display unit
   const formatWeight = (kg: number) => {
@@ -138,7 +148,9 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
       );
 
       if (isPR) {
-        setCelebrationPR(`NEW PR: ${formatWeight(targetSet.weight)} ${unit} × ${targetSet.reps} reps!`);
+        setCelebrationPR(language === 'pt'
+          ? `NOVO RECORDE: ${formatWeight(targetSet.weight)} ${unit} × ${targetSet.reps} repetições!`
+          : `NEW PR: ${formatWeight(targetSet.weight)} ${unit} × ${targetSet.reps} reps!`);
         confetti({
           particleCount: 80,
           spread: 70,
@@ -278,7 +290,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded text-[10px] font-mono-numbers uppercase tracking-wider bg-[#CCFF00]/15 text-[#CCFF00] border border-[#CCFF00]/40 font-bold">
-              LIVE SESSION
+              {language === 'pt' ? 'TREINO EM ANDAMENTO' : 'LIVE SESSION'}
             </span>
             <span className="text-xs text-slate-400 font-mono-numbers">
               {session.routineTitle}
@@ -311,7 +323,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
             type="button"
             onClick={onToggleUnit}
             className="flex items-center gap-1 bg-[#1E293B] border border-slate-700 hover:border-slate-500 rounded-full px-3 py-1.5 text-xs font-mono-numbers text-slate-200 transition-colors"
-            title="Toggle weight unit"
+            title={language === 'pt' ? 'Alternar unidade de peso' : 'Toggle weight unit'}
           >
             <span className={unit === 'kg' ? 'text-[#CCFF00] font-bold' : 'text-slate-400'}>KG</span>
             <span className="text-slate-500">/</span>
@@ -340,7 +352,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                 {language === 'pt' ? 'Ativação Muscular' : 'Target Musculature'}
               </span>
               <span className="text-xs font-mono-numbers text-[#CCFF00] uppercase font-semibold">
-                {exercise.primaryMuscle}
+                {getMuscleLabel(exercise.primaryMuscle, language)}
               </span>
             </div>
             
@@ -349,6 +361,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
               secondaryMuscles={exercise.secondaryMuscles}
               showLabels={true}
               interactive={false}
+              language={language}
             />
 
             {/* Coaching Guidance / Tempo */}
@@ -356,7 +369,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
               {exercise.notes && (
                 <div className="flex items-start gap-2 text-xs text-slate-300">
                   <Info className="w-4 h-4 text-[#38BDF8] shrink-0 mt-0.5" />
-                  <span>{exercise.notes}</span>
+                  <span>{language === 'pt' ? exercise.notesPt || exercise.notes : exercise.notes}</span>
                 </div>
               )}
               {exercise.tempo && (
@@ -471,7 +484,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                     type="button"
                     onClick={() => adjustWeight(unit === 'lbs' ? -5 : -2.5)}
                     className="w-12 h-12 rounded-full bg-[#1E293B] hover:bg-slate-700 active:scale-95 text-white flex items-center justify-center border border-slate-700 transition-transform"
-                    aria-label="Decrease weight"
+                    aria-label={language === 'pt' ? 'Diminuir carga' : 'Decrease weight'}
                   >
                     <Minus className="w-5 h-5" />
                   </button>
@@ -489,7 +502,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                     type="button"
                     onClick={() => adjustWeight(unit === 'lbs' ? 5 : 2.5)}
                     className="w-12 h-12 rounded-full bg-[#1E293B] hover:bg-slate-700 active:scale-95 text-white flex items-center justify-center border border-slate-700 transition-transform"
-                    aria-label="Increase weight"
+                    aria-label={language === 'pt' ? 'Aumentar carga' : 'Increase weight'}
                   >
                     <Plus className="w-5 h-5" />
                   </button>
@@ -521,7 +534,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                     type="button"
                     onClick={() => adjustReps(-1)}
                     className="w-12 h-12 rounded-full bg-[#1E293B] hover:bg-slate-700 active:scale-95 text-white flex items-center justify-center border border-slate-700 transition-transform"
-                    aria-label="Decrease reps"
+                    aria-label={language === 'pt' ? 'Diminuir repetições' : 'Decrease reps'}
                   >
                     <Minus className="w-5 h-5" />
                   </button>
@@ -531,7 +544,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                       {activeSet.reps}
                     </span>
                     <span className="text-[10px] font-mono-numbers text-[#38BDF8] uppercase font-bold tracking-wider">
-                      REPS
+                      {language === 'pt' ? 'REPETIÇÕES' : 'REPS'}
                     </span>
                   </div>
 
@@ -539,7 +552,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                     type="button"
                     onClick={() => adjustReps(1)}
                     className="w-12 h-12 rounded-full bg-[#1E293B] hover:bg-slate-700 active:scale-95 text-white flex items-center justify-center border border-slate-700 transition-transform"
-                    aria-label="Increase reps"
+                    aria-label={language === 'pt' ? 'Aumentar repetições' : 'Increase reps'}
                   >
                     <Plus className="w-5 h-5" />
                   </button>
@@ -598,7 +611,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                     >
                       <div>{rpeNum}</div>
                       <div className="text-[9px] uppercase tracking-tighter opacity-80 mt-0.5">
-                        {rpeNum === 10 ? 'MAX' : rpeNum === 9 ? 'RIR 1' : rpeNum === 8 ? 'RIR 2' : rpeNum === 7 ? 'RIR 3' : 'WARM'}
+                        {rpeNum === 10 ? (language === 'pt' ? 'MÁX' : 'MAX') : rpeNum === 9 ? 'RIR 1' : rpeNum === 8 ? 'RIR 2' : rpeNum === 7 ? 'RIR 3' : (language === 'pt' ? 'AQUEC.' : 'WARM')}
                       </div>
                     </button>
                   );
@@ -669,11 +682,11 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                         {setItem.setNumber}
                       </span>
                       <div>
-                        <div className="text-sm font-bold font-mono-numbers text-white">
-                          {formatWeight(setItem.weight)} {unit} × {setItem.reps} reps
+                          <div className="text-sm font-bold font-mono-numbers text-white">
+                            {formatWeight(setItem.weight)} {unit} × {setItem.reps} {language === 'pt' ? 'repetições' : 'reps'}
                         </div>
                         <div className="text-[11px] font-mono-numbers text-slate-400">
-                          RPE {setItem.rpe || 8} {setItem.previousBest && `· Prev: ${formatWeight(setItem.previousBest.weight)}×${setItem.previousBest.reps}`}
+                          RPE {setItem.rpe || 8} {setItem.previousBest && `· ${language === 'pt' ? 'Anterior' : 'Prev.'}: ${formatWeight(setItem.previousBest.weight)}×${setItem.previousBest.reps}`}
                         </div>
                       </div>
                     </div>
@@ -690,7 +703,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
                           ? 'bg-[#CCFF00] text-[#0A0F1D] shadow-glow-volt scale-105'
                           : 'border-2 border-slate-600 hover:border-slate-400 bg-transparent'
                       }`}
-                      aria-label="Toggle set complete"
+                      aria-label={language === 'pt' ? 'Alternar conclusão da série' : 'Toggle set complete'}
                     >
                       {setItem.isCompleted && <Check className="w-5 h-5 stroke-[3]" />}
                     </button>
@@ -741,7 +754,7 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
             disabled={session.currentExerciseIndex === 0}
             onClick={() => handleSwitchExercise(session.currentExerciseIndex - 1)}
             className="w-10 h-10 rounded-full bg-[#1E293B] hover:bg-slate-700 disabled:opacity-30 text-white flex items-center justify-center transition-colors"
-            title="Previous Exercise"
+            title={language === 'pt' ? 'Exercício anterior' : 'Previous Exercise'}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>

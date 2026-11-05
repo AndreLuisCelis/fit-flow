@@ -223,7 +223,7 @@ export const InactivityReminderCard: React.FC<InactivityReminderCardProps> = ({
 
     if (showToast) {
       if (sentNative) {
-        setToastMessage(language === 'pt' ? 'Notificação enviada ao sistema!' : 'System notification dispatched!');
+        setToastMessage(language === 'pt' ? 'Notificação enviada ao dispositivo!' : 'System notification dispatched!');
       } else {
         setToastMessage(
           language === 'pt'
@@ -425,12 +425,12 @@ export const InactivityReminderCard: React.FC<InactivityReminderCardProps> = ({
               {[
                 { 
                   id: 'hardcore', 
-                  label: language === 'pt' ? 'Hardcore (Foco Total)' : 'Hardcore (High Energy)',
+                  label: language === 'pt' ? 'Intenso (Foco Total)' : 'Hardcore (High Energy)',
                   desc: language === 'pt' ? '“O ferro não se levanta sozinho. Mantenha seus ganhos!”' : '“Iron waits for no one. Lift now!”'
                 },
                 { 
                   id: 'motivational', 
-                  label: language === 'pt' ? 'Motivacional & Streak' : 'Motivational & Streak',
+                  label: language === 'pt' ? 'Motivação e sequência' : 'Motivational & Streak',
                   desc: language === 'pt' ? '“Sua sequência está em jogo! Não deixe o ritmo cair.”' : '“Your streak is alive! Keep moving.”'
                 },
                 { 

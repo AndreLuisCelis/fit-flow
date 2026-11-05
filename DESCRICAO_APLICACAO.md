@@ -8,6 +8,7 @@ A aplicação é voltada a pessoas que querem organizar seus treinos, acompanhar
 
 ## Funcionalidades
 
+- **Onboarding e perfil:** cadastro inicial em etapas, com nome, um ou mais objetivos, experiência e equipamentos; peso e altura são opcionais. O perfil pode ser consultado e editado posteriormente.
 - **Rotinas:** catálogo de treinos predefinidos, com busca e filtros por categoria, músculos trabalhados, duração, dificuldade e exercícios.
 - **Treino ativo:** registro de séries, repetições, carga e RPE; inclusão de séries; notas por exercício; navegação entre exercícios; alternância entre kg e lb.
 - **Descanso:** temporizador integrado ao registro de séries, com controles para pausar, retomar, ajustar o tempo ou pular o descanso.
@@ -15,7 +16,7 @@ A aplicação é voltada a pessoas que querem organizar seus treinos, acompanhar
 - **Treinador e gerador de rotinas:** seleção de foco muscular, duração, equipamentos, fadiga e objetivo. A geração usa a API Gemini quando configurada e tem uma rotina alternativa no servidor quando a chave não está disponível ou a chamada falha.
 - **Progresso:** histórico de sessões, gráficos de carga e estimativa de 1RM, indicadores por grupo muscular, galeria de recordes e exportação do histórico para CSV.
 - **Gamificação:** XP, níveis, sequência de treinos, emblemas, proteção de sequência e recompensa por meta diária de volume.
-- **Preferências:** idioma, unidade de carga e efeitos sonoros, com persistência local.
+- **Preferências:** idioma, unidade de carga, efeitos sonoros e perfil de treino, com persistência local.
 - **PWA e uso offline:** interface instalável em dispositivos compatíveis, service worker e indicador de conectividade. Os dados salvos localmente continuam disponíveis no navegador; a geração online via Gemini depende de conexão.
 
 ## Tecnologias e bibliotecas
@@ -50,7 +51,7 @@ A aplicação é voltada a pessoas que querem organizar seus treinos, acompanhar
 
 ## Dados e persistência
 
-Rotinas, exercícios e histórico de sessões são armazenados no IndexedDB do navegador. Preferências, estatísticas de gamificação e emblemas usam LocalStorage. Esses dados ficam no perfil do navegador e não são sincronizados entre dispositivos por um backend.
+Rotinas, exercícios e histórico de sessões são armazenados no IndexedDB do navegador. O perfil usa a chave `fitflow_profile_v1` no LocalStorage; preferências, estatísticas de gamificação e emblemas também usam LocalStorage. Perfis antigos com um único objetivo são atualizados ao serem lidos. Esses dados ficam no perfil do navegador e não são sincronizados entre dispositivos por um backend. Nome, peso e altura não são enviados ao serviço de geração; somente objetivos, nível de experiência e equipamentos são usados para personalizar os treinos.
 
 Ao inicializar um banco vazio, a aplicação inclui rotinas, exercícios e algumas sessões de exemplo. Além disso, algumas séries de progressão, volumes semanais e indicadores de recuperação exibidos nas análises são dados demonstrativos definidos no código; não representam necessariamente cálculos derivados de todo o histórico pessoal.
 

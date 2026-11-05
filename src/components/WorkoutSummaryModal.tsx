@@ -155,7 +155,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
                 {language === 'pt' ? 'Recompensa de Treino' : 'Session XP Reward'}
               </span>
               <span className="text-[10px] font-mono-numbers text-slate-400">
-                Consistency multiplier: 1.25x
+                {language === 'pt' ? 'Multiplicador de consistência: 1,25x' : 'Consistency multiplier: 1.25x'}
               </span>
             </div>
           </div>
@@ -182,7 +182,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
             ) : (
               <>
                 <Share2 className="w-4 h-4 text-[#38BDF8]" />
-                <span>{language === 'pt' ? 'Compartilhar PRs & Resumo (Web Share)' : 'Share PRs & Summary (Web Share)'}</span>
+                <span>{language === 'pt' ? 'Compartilhar recordes e resumo' : 'Share PRs & Summary (Web Share)'}</span>
               </>
             )}
           </button>

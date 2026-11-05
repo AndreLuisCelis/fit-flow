@@ -123,9 +123,9 @@ export const PersonalRecordsGallery: React.FC<PersonalRecordsGalleryProps> = ({
 
   const categories = [
     { id: 'All', labelPt: 'Todos os PRs', labelEn: 'All PRs' },
-    { id: 'Push', labelPt: 'Push (Peito/Tríceps)', labelEn: 'Push' },
-    { id: 'Pull', labelPt: 'Pull (Costas/Bíceps)', labelEn: 'Pull' },
-    { id: 'Legs', labelPt: 'Pernas (Legs)', labelEn: 'Legs' },
+    { id: 'Push', labelPt: 'Empurrar (Peito/Tríceps)', labelEn: 'Push' },
+    { id: 'Pull', labelPt: 'Puxar (Costas/Bíceps)', labelEn: 'Pull' },
+    { id: 'Legs', labelPt: 'Pernas', labelEn: 'Legs' },
     { id: 'Shoulders', labelPt: 'Ombros (Shoulders)', labelEn: 'Shoulders' },
   ];
 
@@ -152,20 +152,20 @@ export const PersonalRecordsGallery: React.FC<PersonalRecordsGalleryProps> = ({
     switch (tier) {
       case 'elite':
         return {
-          label: 'ELITE TITAN',
+          label: language === 'pt' ? 'TITÃ DE ELITE' : 'ELITE TITAN',
           style: 'bg-[#FF6B00]/15 text-[#FF6B00] border-[#FF6B00]/40 shadow-glow-blaze',
           iconColor: 'text-[#FF6B00]',
         };
       case 'neon':
         return {
-          label: 'NEON PEAK',
+          label: language === 'pt' ? 'PICO NEON' : 'NEON PEAK',
           style: 'bg-[#CCFF00]/15 text-[#CCFF00] border-[#CCFF00]/40 shadow-glow-volt',
           iconColor: 'text-[#CCFF00]',
         };
       case 'gold':
       default:
         return {
-          label: 'GOLD OVERLOAD',
+          label: language === 'pt' ? 'SOBRECARGA DE OURO' : 'GOLD OVERLOAD',
           style: 'bg-[#38BDF8]/15 text-[#38BDF8] border-[#38BDF8]/40 shadow-glow-cyan',
           iconColor: 'text-[#38BDF8]',
         };
@@ -281,7 +281,7 @@ export const PersonalRecordsGallery: React.FC<PersonalRecordsGalleryProps> = ({
                     </span>
                     <div className="text-2xl font-black font-mono-numbers text-[#CCFF00] tracking-tight">
                       {peakDisplay} <span className="text-xs font-normal text-slate-400">{unit}</span>
-                      <span className="text-xs font-semibold text-slate-400 ml-1.5">× {pr.reps} reps</span>
+                      <span className="text-xs font-semibold text-slate-400 ml-1.5">× {pr.reps} {language === 'pt' ? 'repetições' : 'reps'}</span>
                     </div>
                   </div>
 

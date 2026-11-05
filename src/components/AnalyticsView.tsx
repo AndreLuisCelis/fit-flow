@@ -27,6 +27,7 @@ import { CompletedSessionSummary, MuscleGroup } from '../types/workout';
 import { MuscleDiagram } from './MuscleDiagram';
 import { PersonalRecordsGallery } from './PersonalRecordsGallery';
 import { soundManager } from '../utils/audio';
+import { getMuscleLabel } from '../utils/localization';
 
 interface AnalyticsViewProps {
   completedSessions: CompletedSessionSummary[];
@@ -151,7 +152,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <span className="text-lg font-bold text-[#CCFF00]">
               {data.displayWeight} {unit}
             </span>
-            <span className="text-slate-400 text-[11px]">× {data.reps} reps</span>
+            <span className="text-slate-400 text-[11px]">× {data.reps} {language === 'pt' ? 'repetições' : 'reps'}</span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1 border-t border-slate-800/80">
             <span className="text-slate-400">{language === 'pt' ? '1RM Teórico:' : 'Est. 1RM:'}</span>
@@ -167,13 +168,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
   // Mock weekly volume data (last 7 days)
   const weeklyData = [
-    { day: language === 'pt' ? 'Seg' : 'Mon', date: 'Oct 25', volumeKg: 9400, label: 'Push' },
-    { day: language === 'pt' ? 'Ter' : 'Tue', date: 'Oct 26', volumeKg: 11200, label: 'Pull' },
-    { day: language === 'pt' ? 'Qua' : 'Wed', date: 'Oct 27', volumeKg: 0, label: 'Rest' },
-    { day: language === 'pt' ? 'Qui' : 'Thu', date: 'Oct 28', volumeKg: 13500, label: 'Legs' },
-    { day: language === 'pt' ? 'Sex' : 'Fri', date: 'Oct 29', volumeKg: 8700, label: 'Upper' },
-    { day: language === 'pt' ? 'Sáb' : 'Sat', date: 'Oct 30', volumeKg: 10400, label: 'Push B' },
-    { day: language === 'pt' ? 'Dom' : 'Sun', date: 'Oct 31', volumeKg: 7800, label: 'Core' },
+    { day: language === 'pt' ? 'Seg' : 'Mon', date: language === 'pt' ? '25 Out' : 'Oct 25', volumeKg: 9400, label: language === 'pt' ? 'Empurrar' : 'Push' },
+    { day: language === 'pt' ? 'Ter' : 'Tue', date: language === 'pt' ? '26 Out' : 'Oct 26', volumeKg: 11200, label: language === 'pt' ? 'Puxar' : 'Pull' },
+    { day: language === 'pt' ? 'Qua' : 'Wed', date: language === 'pt' ? '27 Out' : 'Oct 27', volumeKg: 0, label: language === 'pt' ? 'Descanso' : 'Rest' },
+    { day: language === 'pt' ? 'Qui' : 'Thu', date: language === 'pt' ? '28 Out' : 'Oct 28', volumeKg: 13500, label: language === 'pt' ? 'Pernas' : 'Legs' },
+    { day: language === 'pt' ? 'Sex' : 'Fri', date: language === 'pt' ? '29 Out' : 'Oct 29', volumeKg: 8700, label: language === 'pt' ? 'Superior' : 'Upper' },
+    { day: language === 'pt' ? 'Sáb' : 'Sat', date: language === 'pt' ? '30 Out' : 'Oct 30', volumeKg: 10400, label: language === 'pt' ? 'Empurrar B' : 'Push B' },
+    { day: language === 'pt' ? 'Dom' : 'Sun', date: language === 'pt' ? '31 Out' : 'Oct 31', volumeKg: 7800, label: language === 'pt' ? 'Abdômen' : 'Core' },
   ];
 
   const maxWeeklyVol = Math.max(...weeklyData.map(d => d.volumeKg), 14000);
@@ -440,20 +441,23 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 setSelectedMuscleFocus(m);
               }}
               showLabels={false}
+              language={language}
             />
 
             {/* Selected Muscle Deep-Dive */}
             <div className="mt-4 bg-[#1E293B] rounded-2xl p-4 border border-slate-800">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs uppercase font-mono-numbers font-bold text-white">
-                  {selectedMuscleFocus}
+                  {getMuscleLabel(selectedMuscleFocus, language)}
                 </span>
                 <span className="text-xs font-mono-numbers font-bold text-[#38BDF8]">
-                  {muscleRecoveryStatus[selectedMuscleFocus]?.percent || 90}% Recovered
+                  {muscleRecoveryStatus[selectedMuscleFocus]?.percent || 90}% {language === 'pt' ? 'Recuperado' : 'Recovered'}
                 </span>
               </div>
               <div className="text-xs text-slate-400 font-mono-numbers">
-                Last stimulus: {muscleRecoveryStatus[selectedMuscleFocus]?.hours || 40} hours ago · Status: {muscleRecoveryStatus[selectedMuscleFocus]?.status}
+                {language === 'pt' ? 'Último estímulo:' : 'Last stimulus:'} {muscleRecoveryStatus[selectedMuscleFocus]?.hours || 40} {language === 'pt' ? 'horas atrás · Estado:' : 'hours ago · Status:'} {language === 'pt'
+                  ? muscleRecoveryStatus[selectedMuscleFocus]?.percent && muscleRecoveryStatus[selectedMuscleFocus].percent < 80 ? 'Em recuperação' : 'Pronto para treinar'
+                  : muscleRecoveryStatus[selectedMuscleFocus]?.status}
               </div>
             </div>
           </div>
@@ -468,11 +472,11 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   {language === 'pt' ? 'VOLUME SEMANAL (TONELAGEM)' : 'WEEKLY TONNAGE TELEMETRY'}
                 </span>
                 <h3 className="text-lg font-bold font-display text-white">
-                  61,000 <span className="text-xs font-mono-numbers text-slate-400">{unit} Total</span>
+                  {language === 'pt' ? '61.000' : '61,000'} <span className="text-xs font-mono-numbers text-slate-400">{unit} {language === 'pt' ? 'no total' : 'Total'}</span>
                 </h3>
               </div>
               <span className="px-2.5 py-1 rounded text-xs font-mono-numbers bg-[#CCFF00]/15 text-[#CCFF00] border border-[#CCFF00]/40 font-bold">
-                +14.2% vs Last Wk
+                {language === 'pt' ? '+14,2% vs. semana passada' : '+14.2% vs Last Wk'}
               </span>
             </div>
 
@@ -515,13 +519,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
           <div className="mt-4 flex items-center justify-between text-xs text-slate-400 font-mono-numbers">
             <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-[#CCFF00]" /> Peak Hypertrophy Session
+              <span className="w-2.5 h-2.5 rounded bg-[#CCFF00]" /> {language === 'pt' ? 'Maior volume da semana' : 'Peak Hypertrophy Session'}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-[#38BDF8]" /> Standard Volume
+              <span className="w-2.5 h-2.5 rounded bg-[#38BDF8]" /> {language === 'pt' ? 'Volume padrão' : 'Standard Volume'}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-slate-800" /> Active Rest
+              <span className="w-2.5 h-2.5 rounded bg-slate-800" /> {language === 'pt' ? 'Descanso' : 'Active Rest'}
             </span>
           </div>
         </div>

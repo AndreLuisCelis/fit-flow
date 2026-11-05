@@ -23,16 +23,21 @@ import {
   Database,
   ArrowRight
 } from 'lucide-react';
-import { WorkoutRoutine, CompletedSessionSummary, ExerciseInRoutine, SetEntry } from '../types/workout';
+import { WorkoutRoutine, CompletedSessionSummary, ExerciseInRoutine, SetEntry, Exercise } from '../types/workout';
+import { UserProfile, ProfileGoal, TrainingEquipment } from '../types/profile';
+import { EXERCISE_DATABASE } from '../data/presetRoutines';
 import { fitFlowDB } from '../db/indexedDb';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
+import { validateGeneratedWorkout } from '../utils/workoutPersonalization';
+import { getMuscleLabel } from '../utils/localization';
 
 interface AiCoachViewProps {
   onStartRoutine: (routine: WorkoutRoutine) => void;
   language: 'pt' | 'en';
   unit: 'kg' | 'lbs';
   completedSessions: CompletedSessionSummary[];
+  profile: UserProfile;
 }
 
 export const AiCoachView: React.FC<AiCoachViewProps> = ({
@@ -40,6 +45,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   language,
   unit,
   completedSessions,
+  profile,
 }) => {
   // Equipment selection options
   const equipmentOptions = [
@@ -48,14 +54,23 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     { id: 'cable', label: language === 'pt' ? 'Cabos & Polias' : 'Cables & Pulleys', icon: '⚙️' },
     { id: 'machine', label: language === 'pt' ? 'Máquinas Guiadas' : 'Selectorized Machines', icon: '🏢' },
     { id: 'bodyweight', label: language === 'pt' ? 'Peso Corporal' : 'Bodyweight', icon: '🤸' },
+    { id: 'pull_up_bar', label: language === 'pt' ? 'Barra Fixa' : 'Pull-up Bar', icon: '↗' },
     { id: 'bands', label: language === 'pt' ? 'Elásticos' : 'Resistance Bands', icon: '🎗️' },
   ];
 
-  const [selectedEquipments, setSelectedEquipments] = useState<string[]>(['barbell', 'dumbbell', 'cable', 'machine']);
-  const [focus, setFocus] = useState<'Push' | 'Pull' | 'Legs' | 'Upper' | 'Lower' | 'Full Body'>('Push');
+  const [selectedEquipments, setSelectedEquipments] = useState<string[]>(() => [...profile.equipment]);
+  const [focus, setFocus] = useState<'Push' | 'Pull' | 'Legs' | 'Upper' | 'Lower' | 'Full Body'>(() => profile.goals.includes('muscle_gain') ? 'Push' : 'Full Body');
   const [duration, setDuration] = useState<number>(45);
   const [fatigueLevel, setFatigueLevel] = useState<'fresh' | 'normal' | 'fatigued'>('normal');
-  const [targetGoal, setTargetGoal] = useState<'hypertrophy' | 'strength' | 'endurance' | 'deload'>('hypertrophy');
+  const goalDefaults: Record<ProfileGoal, 'hypertrophy' | 'strength' | 'endurance' | 'deload'> = {
+    weight_loss: 'endurance',
+    muscle_gain: 'hypertrophy',
+    fitness: 'endurance',
+    health: 'endurance',
+  };
+  const [targetGoal, setTargetGoal] = useState<'hypertrophy' | 'strength' | 'endurance' | 'deload'>(() =>
+    profile.goals.includes('muscle_gain') ? 'hypertrophy' : goalDefaults[profile.goals[0]],
+  );
 
   // IndexedDB Frequent exercises state
   const [frequentExercises, setFrequentExercises] = useState<{ name: string; count: number }[]>([]);
@@ -65,6 +80,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [statusText, setStatusText] = useState<string>('');
   const [generatedRoutine, setGeneratedRoutine] = useState<any | null>(null);
+  const [generatedRoutineId, setGeneratedRoutineId] = useState('');
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -109,29 +125,9 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
         });
 
         // Convert to array
-        let sorted = Object.entries(freqMap)
+        const sorted = Object.entries(freqMap)
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count);
-
-        // Fallback default frequent exercises if history is brand new
-        if (sorted.length === 0) {
-          sorted = language === 'pt' ? [
-            { name: 'Supino Reto com Barra', count: 6 },
-            { name: 'Agachamento Livre', count: 5 },
-            { name: 'Puxada Alta na Polia', count: 5 },
-            { name: 'Elevação Lateral', count: 4 },
-            { name: 'Tríceps Corda no Cross', count: 4 },
-            { name: 'Rosca Direta com Barra', count: 3 },
-          ] : [
-            { name: 'Barbell Bench Press', count: 6 },
-            { name: 'Barbell Squat', count: 5 },
-            { name: 'Lat Pulldown', count: 5 },
-            { name: 'Lateral Raises', count: 4 },
-            { name: 'Cable Triceps Pushdown', count: 4 },
-            { name: 'Barbell Bicep Curl', count: 3 },
-          ];
-        }
-
         setFrequentExercises(sorted.slice(0, 8));
       } catch (err) {
         console.warn('Error reading from IndexedDB:', err);
@@ -146,6 +142,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   // Toggle equipment selection
   const handleToggleEquipment = (id: string) => {
     soundManager.playTick();
+    if (!profile.equipment.includes(id as TrainingEquipment)) return;
     if (selectedEquipments.includes(id)) {
       if (selectedEquipments.length > 1) {
         setSelectedEquipments(selectedEquipments.filter(e => e !== id));
@@ -159,11 +156,13 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   const handleSetPresetEquipment = (preset: 'all' | 'dumbbells' | 'bodyweight') => {
     soundManager.playTick();
     if (preset === 'all') {
-      setSelectedEquipments(['barbell', 'dumbbell', 'cable', 'machine']);
+      setSelectedEquipments([...profile.equipment]);
     } else if (preset === 'dumbbells') {
-      setSelectedEquipments(['dumbbell', 'bodyweight']);
+      const selected = profile.equipment.filter(item => item === 'dumbbell' || item === 'bodyweight');
+      setSelectedEquipments(selected.length ? selected : [...profile.equipment]);
     } else if (preset === 'bodyweight') {
-      setSelectedEquipments(['bodyweight', 'bands']);
+      const selected = profile.equipment.filter(item => item === 'bodyweight' || item === 'bands');
+      setSelectedEquipments(selected.length ? selected : [...profile.equipment]);
     }
   };
 
@@ -200,18 +199,16 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     }, 900);
 
     try {
-      const equipString = selectedEquipments
-        .map(id => equipmentOptions.find(opt => opt.id === id)?.label)
-        .filter(Boolean)
-        .join(', ');
-
       const response = await fetch('/api/gemini/generate-workout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           focus,
           durationMinutes: duration,
-          equipment: equipString,
+          equipment: selectedEquipments,
+          profileEquipment: profile.equipment,
+          profileGoals: profile.goals,
+          experienceLevel: profile.experience,
           fatigueLevel,
           targetGoal,
           language,
@@ -224,11 +221,13 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       }
 
       const data = await response.json();
-      if (!data.routine) {
+      const validatedRoutine = validateGeneratedWorkout(data.routine, selectedEquipments as TrainingEquipment[]);
+      if (!validatedRoutine) {
         throw new Error('Invalid response structure');
       }
 
-      setGeneratedRoutine(data.routine);
+      setGeneratedRoutine(validatedRoutine);
+      setGeneratedRoutineId(`ai-routine-${Date.now()}`);
       soundManager.playLevelUp();
 
       // Confetti celebration
@@ -259,10 +258,28 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     if (!generatedRoutine) throw new Error('No routine generated');
 
     const exercisesInRoutine: ExerciseInRoutine[] = generatedRoutine.exercises.map((ex: any, idx: number) => {
+      const exerciseId = `${generatedRoutineId}-ex-${idx}`;
       const generatedSets: SetEntry[] = [];
       const setsCount = ex.setsCount || 3;
-      const defaultWeight = ex.defaultWeight || 50;
+      const defaultWeight = typeof ex.defaultWeight === 'number' ? ex.defaultWeight : 50;
       const defaultReps = ex.defaultReps || 10;
+
+      const exercise: Exercise = {
+        id: exerciseId,
+        name: ex.name,
+        namePt: ex.name,
+        primaryMuscle: ex.primaryMuscle,
+        category: ex.category,
+        equipmentRequired: ex.equipmentRequired,
+        defaultSets: setsCount,
+        defaultReps,
+        defaultWeight,
+        restSeconds: ex.targetRestSeconds || 75,
+        notes: ex.notes,
+        notesPt: language === 'pt' ? ex.notes : ex.notesPt,
+        tempo: ex.tempo,
+      };
+      EXERCISE_DATABASE[exerciseId] = exercise;
 
       for (let i = 1; i <= setsCount; i++) {
         generatedSets.push({
@@ -276,7 +293,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       }
 
       return {
-        exerciseId: `ex-gen-${idx}`,
+        exerciseId,
         sets: generatedSets,
         targetRestSeconds: ex.targetRestSeconds || 75,
         customNotes: ex.notes || ex.tempo ? `Cadência: ${ex.tempo}. ${ex.notes || ''}` : undefined,
@@ -284,7 +301,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     });
 
     return {
-      id: `ai-routine-${Date.now()}`,
+      id: generatedRoutineId,
       title: generatedRoutine.title,
       titlePt: generatedRoutine.title,
       category: generatedRoutine.category || focus,
@@ -308,6 +325,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     if (!generatedRoutine || isSaved) return;
     try {
       const routineModel = buildRoutineModel();
+      await Promise.all(routineModel.exercises.map(item => {
+        const exercise = EXERCISE_DATABASE[item.exerciseId];
+        return exercise ? fitFlowDB.saveExercise(exercise) : Promise.resolve();
+      }));
       await fitFlowDB.saveRoutine(routineModel);
       setIsSaved(true);
       soundManager.playTick();
@@ -337,7 +358,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                   {language === 'pt' ? 'MOTOR NEURAL GEMINI 3.8 FLASH' : 'GEMINI 3.8 FLASH ENGINE'}
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono-numbers bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40 font-bold">
-                  IndexedDB Connected
+                  {language === 'pt' ? 'Histórico local conectado' : 'IndexedDB Connected'}
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-extrabold font-display text-white">
@@ -450,7 +471,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {equipmentOptions.map((eq) => {
+              {equipmentOptions.filter(eq => profile.equipment.includes(eq.id as TrainingEquipment)).map((eq) => {
                 const isSelected = selectedEquipments.includes(eq.id);
                 return (
                   <button
@@ -495,7 +516,9 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                         : 'bg-[#1E293B] text-slate-300 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    {cat}
+                    {language === 'pt'
+                      ? ({ Push: 'Empurrar', Pull: 'Puxar', Legs: 'Pernas', Upper: 'Parte superior', Lower: 'Parte inferior', 'Full Body': 'Corpo todo' } as const)[cat]
+                      : cat}
                   </button>
                 ))}
               </div>
@@ -671,7 +694,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                       <h5 className="text-sm font-bold text-white flex items-center gap-2">
                         <span>{ex.name}</span>
                         <span className="text-[10px] font-mono-numbers uppercase px-2 py-0.2 rounded bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/30">
-                          {ex.primaryMuscle}
+                          {getMuscleLabel(ex.primaryMuscle, language)}
                         </span>
                       </h5>
                       {ex.notes && (
@@ -685,13 +708,13 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                   {/* Prescription Badges */}
                   <div className="flex items-center gap-3 font-mono-numbers text-xs text-slate-300">
                     <div className="bg-[#0F172A] px-3 py-1.5 rounded-xl border border-slate-800">
-                      <span className="text-slate-500 text-[10px] uppercase block">Sets × Reps</span>
+                      <span className="text-slate-500 text-[10px] uppercase block">{language === 'pt' ? 'Séries × repetições' : 'Sets × Reps'}</span>
                       <span className="text-white font-bold">{ex.setsCount || 3} × {ex.defaultReps || 10}</span>
                     </div>
 
                     <div className="bg-[#0F172A] px-3 py-1.5 rounded-xl border border-slate-800">
                       <span className="text-slate-500 text-[10px] uppercase block">Carga Alvo</span>
-                      <span className="text-[#CCFF00] font-bold">{formatWeight(ex.defaultWeight || 50)}</span>
+                      <span className="text-[#CCFF00] font-bold">{formatWeight(typeof ex.defaultWeight === 'number' ? ex.defaultWeight : 50)}</span>
                     </div>
 
                     <div className="bg-[#0F172A] px-3 py-1.5 rounded-xl border border-slate-800">

@@ -70,7 +70,7 @@ export const GamificationView: React.FC<GamificationViewProps> = ({
                   {language === 'pt' ? 'RANK ATLÉTICO' : 'ATHLETIC DIVISION'}
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono-numbers bg-[#8B5CF6]/20 text-[#C4B5FD] border border-[#8B5CF6]/40">
-                  TIER III
+                  {language === 'pt' ? 'NÍVEL III' : 'TIER III'}
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-extrabold font-display text-white">
@@ -187,7 +187,7 @@ export const GamificationView: React.FC<GamificationViewProps> = ({
             <span>
               {stats.streakFrozenToday 
                 ? (language === 'pt' ? 'Escudo Anti-Inatividade Equipado' : 'Freeze Shield Equipped') 
-                : (language === 'pt' ? 'Ativar Proteção de Sequência (Freeze)' : 'Activate Streak Freeze Protection')}
+                : (language === 'pt' ? 'Ativar proteção da sequência' : 'Activate Streak Freeze Protection')}
             </span>
           </button>
         </div>
@@ -232,7 +232,7 @@ export const GamificationView: React.FC<GamificationViewProps> = ({
                 </span>
               </div>
               <span className="text-[10px] font-mono-numbers text-slate-400">
-                Epley Formula
+                {language === 'pt' ? 'Fórmula de Epley' : 'Epley Formula'}
               </span>
             </div>
 

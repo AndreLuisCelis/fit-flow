@@ -16,13 +16,40 @@ import { RestTimerModal } from './components/RestTimerModal';
 import { WorkoutSummaryModal } from './components/WorkoutSummaryModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AiCoachView } from './components/AiCoachView';
+import { UserProfileView } from './components/UserProfileView';
 import { fitFlowDB } from './db/indexedDb';
+import { userProfileStore, UserProfileReadResult } from './services/userProfile';
+import { UserProfile } from './types/profile';
 import { soundManager } from './utils/audio';
+import { rankCompatibleRoutines } from './utils/workoutPersonalization';
 import { Dumbbell, Play, Sparkles, Flame, CheckCircle, Shield } from 'lucide-react';
 
 export default function App() {
   // Navigation
-  const [currentTab, setCurrentTab] = useState<'workout' | 'routines' | 'coach' | 'gamification' | 'analytics'>('routines');
+  const [currentTab, setCurrentTab] = useState<'workout' | 'routines' | 'coach' | 'gamification' | 'analytics' | 'profile'>('routines');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileGate, setProfileGate] = useState<'loading' | 'setup' | 'ready' | 'storage-error'>('loading');
+  const [profileNotice, setProfileNotice] = useState('');
+
+  const applyProfileReadResult = (result: UserProfileReadResult) => {
+    if (result.status === 'valid') {
+      setProfile(result.profile);
+      setProfileGate('ready');
+      setProfileNotice('');
+    } else if (result.status === 'error') {
+      setProfileGate('storage-error');
+    } else {
+      setProfile(null);
+      setProfileGate('setup');
+      setProfileNotice(result.status === 'invalid'
+        ? 'Os dados de perfil salvos estão inválidos. Revise e salve suas informações novamente.'
+        : '');
+    }
+  };
+
+  useEffect(() => {
+    applyProfileReadResult(userProfileStore.load());
+  }, []);
 
   // LocalStorage: Preferências e Configurações
   const [language, setLanguage] = useState<'pt' | 'en'>(() => {
@@ -189,6 +216,56 @@ export default function App() {
     setCurrentTab('workout');
   };
 
+  const handleQuickStart = () => {
+    if (activeSession) {
+      setCurrentTab('workout');
+      return;
+    }
+
+    const recommendedRoutine = profile
+      ? rankCompatibleRoutines(PRESET_ROUTINES, EXERCISE_DATABASE, profile)[0]
+      : undefined;
+    if (recommendedRoutine) handleStartRoutine(recommendedRoutine);
+    else setCurrentTab('routines');
+  };
+
+  const handleSaveProfile = async (nextProfile: UserProfile) => {
+    const savedProfile = userProfileStore.save(nextProfile);
+    setProfile(savedProfile);
+    setProfileGate('ready');
+    setProfileNotice('');
+    setCurrentTab('routines');
+  };
+
+  if (profileGate === 'loading') {
+    return (
+      <div className="min-h-screen bg-[#0A0F1D] text-white flex items-center justify-center" role="status">
+        <span className="text-sm font-mono-numbers text-slate-300">Carregando perfil...</span>
+      </div>
+    );
+  }
+
+  if (profileGate === 'storage-error') {
+    return (
+      <div className="min-h-screen bg-[#0A0F1D] px-4 flex items-center justify-center text-white">
+        <section className="w-full max-w-md rounded-2xl border border-rose-500/40 bg-[#0F172A] p-6">
+          <h1 className="text-xl font-bold">Não foi possível acessar seu perfil</h1>
+          <p className="mt-2 text-sm text-slate-300">O armazenamento local está indisponível. Verifique as permissões do navegador e tente novamente.</p>
+          <button type="button" onClick={() => applyProfileReadResult(userProfileStore.load())} className="mt-5 min-h-11 rounded-lg bg-[#CCFF00] px-4 text-sm font-bold text-[#0A0F1D]">Tentar novamente</button>
+        </section>
+      </div>
+    );
+  }
+
+  if (profileGate === 'setup') {
+    return (
+      <div className="min-h-screen bg-[#0A0F1D] text-[#F8FAFC] font-body selection:bg-[#CCFF00] selection:text-[#0A0F1D]">
+        {profileNotice && <p className="mx-auto mt-4 max-w-3xl px-4 text-sm text-amber-200" role="status">{profileNotice}</p>}
+        <UserProfileView mode="onboarding" language={language} onSave={handleSaveProfile} />
+      </div>
+    );
+  }
+
   // Trigger Rest Timer
   const handleTriggerRestTimer = (seconds: number, nextExName?: string, nextSetNum?: number) => {
     setRestTimeLeft(seconds);
@@ -314,18 +391,13 @@ export default function App() {
         currentTab={currentTab}
         onChangeTab={setCurrentTab}
         isWorkoutActive={!!activeSession}
-        onQuickStart={() => {
-          if (activeSession) {
-            setCurrentTab('workout');
-          } else {
-            handleStartRoutine(PRESET_ROUTINES[0]);
-          }
-        }}
+        onQuickStart={handleQuickStart}
         language={language}
         onToggleLanguage={() => setLanguage(l => l === 'pt' ? 'en' : 'pt')}
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled(s => !s)}
         streakDays={userStats.streakDays}
+        profile={profile!}
       />
 
       {/* Main Dynamic Viewport */}
@@ -358,11 +430,11 @@ export default function App() {
               </p>
               <button
                 type="button"
-                onClick={() => handleStartRoutine(PRESET_ROUTINES[0])}
+                onClick={handleQuickStart}
                 className="w-full min-h-[52px] rounded-full bg-[#CCFF00] hover:brightness-110 active:scale-95 text-[#0A0F1D] font-bold text-sm uppercase tracking-wider shadow-glow-volt flex items-center justify-center gap-2 mb-3 transition-all"
               >
                 <Play className="w-4 h-4 fill-current" />
-                <span>{language === 'pt' ? 'Iniciar Treino Push Alpha' : 'Launch Push Alpha Routine'}</span>
+                <span>{language === 'pt' ? 'Iniciar Treino Recomendado' : 'Start Recommended Workout'}</span>
               </button>
               <button
                 type="button"
@@ -380,6 +452,8 @@ export default function App() {
             onStartRoutine={handleStartRoutine}
             language={language}
             unit={unit}
+            profile={profile!}
+            onOpenProfile={() => setCurrentTab('profile')}
           />
         )}
 
@@ -389,6 +463,7 @@ export default function App() {
             language={language}
             unit={unit}
             completedSessions={completedSessions}
+            profile={profile!}
           />
         )}
 
@@ -410,6 +485,17 @@ export default function App() {
             completedSessions={completedSessions}
             language={language}
             unit={unit}
+          />
+        )}
+
+        {currentTab === 'profile' && profile && (
+          <UserProfileView
+            key="profile-edit"
+            mode="edit"
+            profile={profile}
+            language={language}
+            onSave={handleSaveProfile}
+            onCancel={() => setCurrentTab('routines')}
           />
         )}
       </main>

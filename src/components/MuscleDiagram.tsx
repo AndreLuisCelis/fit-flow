@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MuscleGroup } from '../types/workout';
+import { getMuscleLabel } from '../utils/localization';
 
 interface MuscleDiagramProps {
   primaryMuscle?: MuscleGroup;
@@ -8,6 +9,7 @@ interface MuscleDiagramProps {
   onSelectMuscle?: (muscle: MuscleGroup) => void;
   className?: string;
   showLabels?: boolean;
+  language?: 'pt' | 'en';
 }
 
 export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
@@ -17,6 +19,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
   onSelectMuscle,
   className = '',
   showLabels = true,
+  language = 'pt',
 }) => {
   const [view, setView] = useState<'anterior' | 'posterior'>('anterior');
 
@@ -59,7 +62,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Front
+          {language === 'pt' ? 'Frente' : 'Front'}
         </button>
         <button
           type="button"
@@ -70,7 +73,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Back
+          {language === 'pt' ? 'Costas' : 'Back'}
         </button>
       </div>
 
@@ -353,7 +356,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
             <div className="flex items-center gap-1.5 text-[#CCFF00]">
               <span className="w-2 h-2 rounded-full bg-[#CCFF00] shadow-glow-volt" />
               <span className="uppercase font-semibold tracking-wider">
-                Target: {primaryMuscle}
+                {language === 'pt' ? 'Principal: ' : 'Target: '}{getMuscleLabel(primaryMuscle, language)}
               </span>
             </div>
           )}
@@ -361,7 +364,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
             <div className="flex items-center gap-1.5 text-[#38BDF8]">
               <span className="w-2 h-2 rounded-full bg-[#38BDF8]" />
               <span className="uppercase font-semibold tracking-wider">
-                Support: {secondaryMuscles.join(', ')}
+                {language === 'pt' ? 'Auxiliares: ' : 'Support: '}{secondaryMuscles.map(muscle => getMuscleLabel(muscle, language)).join(', ')}
               </span>
             </div>
           )}

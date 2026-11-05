@@ -1,12 +1,13 @@
 import React from 'react';
-import { Dumbbell, Flame, BarChart3, Layers, Zap, Volume2, VolumeX, Globe, Bot } from 'lucide-react';
+import { Dumbbell, Flame, BarChart3, Layers, Zap, Volume2, VolumeX, Globe, Bot, UserRound } from 'lucide-react';
 import { soundManager } from '../utils/audio';
 import { PWAInstallButton } from './PWAInstallButton';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { UserProfile } from '../types/profile';
 
 interface NavbarProps {
-  currentTab: 'workout' | 'routines' | 'coach' | 'gamification' | 'analytics';
-  onChangeTab: (tab: 'workout' | 'routines' | 'coach' | 'gamification' | 'analytics') => void;
+  currentTab: 'workout' | 'routines' | 'coach' | 'gamification' | 'analytics' | 'profile';
+  onChangeTab: (tab: 'workout' | 'routines' | 'coach' | 'gamification' | 'analytics' | 'profile') => void;
   isWorkoutActive: boolean;
   onQuickStart: () => void;
   language: 'pt' | 'en';
@@ -14,6 +15,7 @@ interface NavbarProps {
   soundEnabled: boolean;
   onToggleSound: () => void;
   streakDays: number;
+  profile: UserProfile;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   soundEnabled,
   onToggleSound,
   streakDays,
+  profile,
 }) => {
   const isOnline = useOnlineStatus();
   const navItems = [
@@ -97,6 +100,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Zone 3: 1 primary action area */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => onChangeTab('profile')}
+              aria-label={language === 'pt' ? `Perfil de ${profile.name}` : `${profile.name}'s profile`}
+              title={language === 'pt' ? `Perfil de ${profile.name}` : `${profile.name}'s profile`}
+              className={`w-9 h-9 rounded-full border flex items-center justify-center transition-colors ${
+                currentTab === 'profile'
+                  ? 'bg-[#CCFF00]/10 border-[#CCFF00] text-[#CCFF00]'
+                  : 'bg-[#1E293B] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white'
+              }`}
+            >
+              <UserRound className="w-4 h-4" />
+            </button>
+
             {/* PWA Install Button */}
             <PWAInstallButton language={language} />
 

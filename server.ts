@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { Exercise } from './src/types/workout';
+import { EXPERIENCE_LEVELS, PROFILE_GOALS, TRAINING_EQUIPMENT, ExperienceLevel, ProfileGoal, TrainingEquipment } from './src/types/profile';
+import { EXERCISE_DATABASE } from './src/data/presetRoutines';
+import { adaptGeneratedWorkout, describeGoals, experiencePrompt, GeneratedWorkout, isEquipmentAvailable, validateGeneratedWorkout } from './src/utils/workoutPersonalization';
 
 dotenv.config();
 
@@ -19,33 +23,67 @@ app.use(express.json());
 const apiKey = process.env.GEMINI_API_KEY || '';
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+function normalizeProfileGoals(value: unknown): ProfileGoal[] {
+  const input = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  const goals = [...new Set(input.filter(
+    (goal): goal is ProfileGoal =>
+      typeof goal === 'string' && PROFILE_GOALS.includes(goal as ProfileGoal),
+  ))];
+  return goals.length > 0 ? goals : ['muscle_gain'];
+}
+
 // API Route: Generate or adapt workout via Gemini 3.8 Flash
 app.post('/api/gemini/generate-workout', async (req, res) => {
   try {
+    const body = req.body ?? {};
     const { 
       focus, 
       durationMinutes, 
-      equipment, 
       fatigueLevel, 
       language, 
       frequentExercises, 
       targetGoal 
-    } = req.body;
+    } = body;
+    const requestedEquipment = Array.isArray(body.profileEquipment)
+      ? body.profileEquipment
+      : Array.isArray(body.equipment)
+        ? body.equipment
+        : ['barbell', 'dumbbell', 'cable', 'machine'];
+    const availableEquipment: TrainingEquipment[] = [...new Set<TrainingEquipment>(requestedEquipment.filter(
+      (item: unknown): item is TrainingEquipment =>
+        typeof item === 'string' && TRAINING_EQUIPMENT.includes(item as TrainingEquipment),
+    ))];
+    if (availableEquipment.length === 0) {
+      return res.status(400).json({ success: false, message: 'Selecione equipamentos válidos no perfil.' });
+    }
+
+    const profileGoals = normalizeProfileGoals(body.profileGoals ?? body.profileGoal);
+    const experienceLevel: ExperienceLevel = EXPERIENCE_LEVELS.includes(body.experienceLevel) ? body.experienceLevel : 'intermediate';
+    const allowedEquipment = Array.isArray(body.equipment)
+      ? availableEquipment.filter(item => body.equipment.includes(item))
+      : availableEquipment;
+    if (allowedEquipment.length === 0) {
+      return res.status(400).json({ success: false, message: 'Selecione ao menos um equipamento disponível no perfil.' });
+    }
 
     if (!ai) {
       // Fallback if no API key configured in dev
+      const routine = generateProfileFallback(focus, durationMinutes, language, allowedEquipment, experienceLevel, profileGoals);
+      if (!routine) {
+        return res.status(422).json({ success: false, message: 'Não há exercícios cadastrados para os equipamentos selecionados.' });
+      }
       return res.status(200).json({
         success: true,
         isFallback: true,
         message: 'No API key provided, generated via local kinetic engine',
-        routine: generateFallbackRoutine(focus, durationMinutes, language, frequentExercises, equipment),
+        routine,
       });
     }
 
     const langName = language === 'en' ? 'English' : 'Portuguese (Português do Brasil)';
     const freqExercisesText = Array.isArray(frequentExercises) && frequentExercises.length > 0
-      ? frequentExercises.join(', ')
-      : 'Supino Reto, Agachamento Livre, Puxada Alta, Elevação Lateral';
+        ? frequentExercises.join(', ')
+      : 'No exercise history available';
 
     const prompt = `
 You are the elite conditioning coach behind FitFlow PWA.
@@ -54,7 +92,9 @@ Create an athletic workout routine with progressive overload metrics in ${langNa
 User Parameters & Historical Telemetry:
 - Muscle Focus: ${focus || 'Full Body Hypertrophy'}
 - Session Duration: ${durationMinutes || 45} minutes
-- Available Equipment: ${equipment || 'Full Gym (Barbell, Dumbbells, Cables, Machines)'}
+- Available Equipment: ${allowedEquipment.join(', ')}
+- Main Goals: ${describeGoals(profileGoals)}
+- Experience Level: ${experiencePrompt[experienceLevel]}
 - Athlete Fatigue Level: ${fatigueLevel || 'Normal'}
 - Specific Training Goal: ${targetGoal || 'Hipertrofia & Sobrecarga Progressiva'}
 - Athlete's Most Frequent Exercises from IndexedDB History: ${freqExercisesText}
@@ -62,6 +102,7 @@ User Parameters & Historical Telemetry:
 Coaching Directives:
 1. Prioritize and intelligently incorporate the athlete's most frequent exercises (or progressive overload variations of them) that strictly match the available equipment.
 2. Only select exercises that can be performed using the specified available equipment.
+  For bodyweight movements that require apparatus (for example, hanging leg raises), declare that apparatus in equipmentRequired.
 3. Include specific tempo (e.g. 3-0-1-0), realistic default starting weights in kg, target rep ranges, and rest intervals.
 4. Provide 1-2 sharp, tactical coaching notes highlighting why this routine matches their historical strengths.
 
@@ -78,7 +119,8 @@ Respond ONLY with valid JSON (no markdown formatting, no code block backticks) a
     {
       "name": "string (Exercise name)",
       "primaryMuscle": "chest" | "back" | "shoulders" | "biceps" | "triceps" | "quads" | "hamstrings" | "calves" | "core" | "glutes",
-      "category": "barbell" | "dumbbell" | "cable" | "machine" | "bodyweight",
+      "category": "barbell" | "dumbbell" | "cable" | "machine" | "bodyweight" | "bands",
+      "equipmentRequired": ["pull_up_bar"] (optional; list additional required equipment),
       "defaultWeight": number (in kg, realistic default like 60, 80, 20),
       "defaultReps": number (e.g. 8, 10, 12),
       "setsCount": number (e.g. 3 or 4),
@@ -101,21 +143,34 @@ Respond ONLY with valid JSON (no markdown formatting, no code block backticks) a
     const text = response.text || '';
     const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(cleanJson);
+    const validatedRoutine = validateGeneratedWorkout(parsedData, allowedEquipment);
+    if (!validatedRoutine) {
+      throw new Error('Gemini returned an invalid or equipment-incompatible workout');
+    }
+    const personalizedRoutine = adaptGeneratedWorkout(validatedRoutine, experienceLevel);
 
     return res.status(200).json({
       success: true,
-      routine: parsedData,
+      routine: personalizedRoutine,
     });
   } catch (error: unknown) {
     console.error('Error generating workout with Gemini:', error);
     // Return graceful fallback routine on failure
-    const fallback = generateFallbackRoutine(
+    const fallback = generateProfileFallback(
       req.body?.focus,
       req.body?.durationMinutes,
       req.body?.language,
-      req.body?.frequentExercises,
-      req.body?.equipment
+      Array.isArray(req.body?.profileEquipment)
+        ? req.body.profileEquipment.filter((item: unknown): item is TrainingEquipment =>
+            TRAINING_EQUIPMENT.includes(item as TrainingEquipment) &&
+            (!Array.isArray(req.body?.equipment) || req.body.equipment.includes(item)))
+        : ['barbell', 'dumbbell', 'cable', 'machine'],
+      EXPERIENCE_LEVELS.includes(req.body?.experienceLevel) ? req.body.experienceLevel : 'intermediate',
+      normalizeProfileGoals(req.body?.profileGoals ?? req.body?.profileGoal),
     );
+    if (!fallback) {
+      return res.status(422).json({ success: false, message: 'Não há exercícios cadastrados para os equipamentos selecionados.' });
+    }
     return res.status(200).json({
       success: true,
       isFallback: true,
@@ -124,13 +179,73 @@ Respond ONLY with valid JSON (no markdown formatting, no code block backticks) a
   }
 });
 
+function generateProfileFallback(
+  focus: string | undefined,
+  duration: number | undefined,
+  language: string | undefined,
+  equipment: TrainingEquipment[],
+  experience: ExperienceLevel,
+  goals: ProfileGoal[],
+): GeneratedWorkout | null {
+  const isPt = language !== 'en';
+  const fallback = generateFallbackRoutine(focus, duration, language);
+  const focusText = (focus || '').toLowerCase();
+  const prefersFullBody = focusText.includes('full') || goals.some(goal => goal === 'weight_loss' || goal === 'fitness' || goal === 'health');
+  let exercises = fallback.exercises.filter(exercise => equipment.includes(exercise.category as TrainingEquipment));
+  const needsExerciseCatalogFallback = exercises.length === 0;
+
+  if (prefersFullBody || needsExerciseCatalogFallback) {
+    const compatible = Object.values(EXERCISE_DATABASE)
+      .filter((exercise: Exercise) => isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired))
+      .sort((left: Exercise, right: Exercise) => {
+        const leftScore = (left.category === 'bodyweight' ? 3 : 0) + (left.primaryMuscle !== 'core' ? 1 : 0);
+        const rightScore = (right.category === 'bodyweight' ? 3 : 0) + (right.primaryMuscle !== 'core' ? 1 : 0);
+        return rightScore - leftScore;
+      })
+      .slice(0, 5);
+    exercises = compatible.map((exercise: Exercise) => ({
+      name: isPt ? exercise.namePt : exercise.name,
+      primaryMuscle: exercise.primaryMuscle,
+      category: exercise.category,
+      ...(exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {}),
+      defaultWeight: exercise.defaultWeight,
+      defaultReps: exercise.defaultReps,
+      setsCount: experience === 'beginner' ? Math.min(3, exercise.defaultSets) : exercise.defaultSets,
+      targetRestSeconds: exercise.restSeconds,
+      tempo: exercise.tempo || '',
+      notes: exercise.notes || '',
+      ...(exercise.notesPt ? { notesPt: exercise.notesPt } : {}),
+    }));
+  } else if (experience === 'beginner') {
+    exercises = exercises.map(exercise => ({ ...exercise, setsCount: Math.min(3, exercise.setsCount) }));
+  }
+
+  if (exercises.length === 0) return null;
+
+  const targetMuscles = [...new Set(exercises.map(exercise => exercise.primaryMuscle))];
+  const candidate = {
+    ...fallback,
+    title: prefersFullBody || needsExerciseCatalogFallback
+      ? (isPt ? 'FitFlow Corpo Todo Adaptado' : 'FitFlow Adapted Full Body')
+      : fallback.title,
+    category: prefersFullBody || needsExerciseCatalogFallback ? 'Full Body' : fallback.category,
+    difficulty: experience === 'beginner' ? 'Beginner' : experience === 'intermediate' ? 'Intermediate' : 'Advanced',
+    targetDurationMinutes: duration || 45,
+    targetMuscles,
+    exercises,
+    coachingNotes: isPt
+      ? `Rotina adaptada para seus objetivos de ${describeGoals(goals)} e nível ${experiencePrompt[experience]}.`
+      : `Routine adapted for your goals (${describeGoals(goals)}) and ${experiencePrompt[experience]} experience level.`,
+  };
+
+  return validateGeneratedWorkout(candidate, equipment);
+}
+
 // Helper for deterministic high quality fallback
 function generateFallbackRoutine(
   focus?: string, 
   duration?: number, 
   language?: string,
-  frequentExercises?: string[],
-  equipment?: string
 ) {
   const isPt = language !== 'en';
   const focusStr = (focus || 'Push').toLowerCase();

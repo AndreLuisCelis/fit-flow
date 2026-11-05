@@ -61,6 +61,28 @@ class FitFlowDatabase {
         const exercisesStore = tx.objectStore('exercises');
         const historyStore = tx.objectStore('history');
 
+        // Add new definitions and migrate localized notes/equipment requirements.
+        Object.values(EXERCISE_DATABASE).forEach((exercise) => {
+          const existingRequest = exercisesStore.get(exercise.id);
+          existingRequest.onsuccess = () => {
+            const existing = existingRequest.result as Exercise | undefined;
+            if (!existing) {
+              exercisesStore.add(exercise);
+            } else {
+              let changed = false;
+              if (exercise.notesPt && existing.notesPt !== exercise.notesPt) {
+                existing.notesPt = exercise.notesPt;
+                changed = true;
+              }
+              if (exercise.equipmentRequired?.length && JSON.stringify(existing.equipmentRequired) !== JSON.stringify(exercise.equipmentRequired)) {
+                existing.equipmentRequired = exercise.equipmentRequired;
+                changed = true;
+              }
+              if (changed) exercisesStore.put(existing);
+            }
+          };
+        });
+
         const countReq = routinesStore.count();
         countReq.onsuccess = () => {
           if (countReq.result === 0) {

@@ -17,41 +17,56 @@ import {
   WifiOff
 } from 'lucide-react';
 import { WorkoutRoutine, MuscleGroup, Exercise, SetEntry } from '../types/workout';
+import { UserProfile } from '../types/profile';
 import { PRESET_ROUTINES, EXERCISE_DATABASE } from '../data/presetRoutines';
 import { fitFlowDB } from '../db/indexedDb';
 import { soundManager } from '../utils/audio';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { isEquipmentAvailable, rankCompatibleRoutines, validateGeneratedWorkout } from '../utils/workoutPersonalization';
+import { getMuscleLabel } from '../utils/localization';
 
 interface RoutinesHubProps {
   onStartRoutine: (routine: WorkoutRoutine) => void;
   language: 'pt' | 'en';
   unit: 'kg' | 'lbs';
+  profile: UserProfile;
+  onOpenProfile: () => void;
 }
 
 export const RoutinesHub: React.FC<RoutinesHubProps> = ({
   onStartRoutine,
   language,
   unit,
+  profile,
+  onOpenProfile,
 }) => {
   const isOnline = useOnlineStatus();
   const [routinesList, setRoutinesList] = useState<WorkoutRoutine[]>(PRESET_ROUTINES);
+  const [exerciseDatabase, setExerciseDatabase] = useState<Record<string, Exercise>>({ ...EXERCISE_DATABASE });
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showAiModal, setShowAiModal] = useState<boolean>(false);
 
   // AI Generator state
-  const [aiFocus, setAiFocus] = useState<string>('Push & Shoulders');
+  const [aiFocus, setAiFocus] = useState<string>(() => profile.goals.includes('muscle_gain') ? 'Push & Shoulders' : 'Full Body');
   const [aiDuration, setAiDuration] = useState<number>(45);
-  const [aiEquipment, setAiEquipment] = useState<string>('Full Commercial Gym');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedRoutine, setGeneratedRoutine] = useState<WorkoutRoutine | null>(null);
   const [isAiOnlineSource, setIsAiOnlineSource] = useState<boolean>(false);
+  const [generationError, setGenerationError] = useState<string>('');
 
   // Load routines from IndexedDB on mount
   useEffect(() => {
     async function loadIndexedDbRoutines() {
       try {
-        const storedRoutines = await fitFlowDB.getRoutines();
+        const [storedRoutines, storedExercises] = await Promise.all([
+          fitFlowDB.getRoutines(),
+          fitFlowDB.getExercises(),
+        ]);
+        setExerciseDatabase(current => ({
+          ...current,
+          ...Object.fromEntries(storedExercises.map(exercise => [exercise.id, exercise])),
+        }));
         if (storedRoutines && storedRoutines.length > 0) {
           setRoutinesList(storedRoutines);
         }
@@ -63,8 +78,12 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
   }, []);
 
   const categories = ['All', 'Push', 'Pull', 'Legs', 'Upper'];
+  const categoryLabels: Record<string, string> = language === 'pt'
+    ? { All: 'Todas', Push: 'Empurrar', Pull: 'Puxar', Legs: 'Pernas', Upper: 'Parte superior' }
+    : { All: 'All', Push: 'Push', Pull: 'Pull', Legs: 'Legs', Upper: 'Upper' };
 
-  const filteredRoutines = routinesList.filter(routine => {
+  const compatibleRoutines = rankCompatibleRoutines(routinesList, exerciseDatabase, profile);
+  const filteredRoutines = compatibleRoutines.filter(routine => {
     const matchesCategory = selectedCategory === 'All' || routine.category === selectedCategory;
     const title = language === 'pt' ? (routine.titlePt || routine.title) : routine.title;
     const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -75,6 +94,8 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
   const handleGenerateAiWorkout = async () => {
     soundManager.playTick();
     setIsGenerating(true);
+    setGenerationError('');
+    setGeneratedRoutine(null);
 
     try {
       if (isOnline) {
@@ -85,7 +106,10 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
           body: JSON.stringify({
             focus: aiFocus,
             durationMinutes: aiDuration,
-            equipment: aiEquipment,
+            equipment: profile.equipment,
+            profileEquipment: profile.equipment,
+            profileGoals: profile.goals,
+            experienceLevel: profile.experience,
             fatigueLevel: 'Normal',
             language,
           }),
@@ -93,8 +117,9 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
 
         if (response.ok) {
           const data = await response.json();
-          if (data.routine) {
-            const r = data.routine;
+          const r = validateGeneratedWorkout(data.routine, profile.equipment);
+          if (r) {
+            const generatedExercises: Exercise[] = [];
             const newRoutine: WorkoutRoutine = {
               id: `gemini-routine-${Date.now()}`,
               title: r.title || 'Gemini Hyper-Overload',
@@ -107,21 +132,23 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
               exercises: (r.exercises || []).map((ex: any, idx: number) => {
                 const exId = `ex-${Date.now()}-${idx}`;
                 // register in exercise database if new
-                if (!EXERCISE_DATABASE[exId]) {
-                  EXERCISE_DATABASE[exId] = {
+                const newExercise: Exercise = {
                     id: exId,
                     name: ex.name,
                     namePt: ex.name,
                     primaryMuscle: ex.primaryMuscle || 'chest',
                     category: ex.category || 'barbell',
+                    equipmentRequired: ex.equipmentRequired,
                     defaultSets: ex.setsCount || 4,
                     defaultReps: ex.defaultReps || 10,
                     defaultWeight: ex.defaultWeight || 50,
                     restSeconds: ex.targetRestSeconds || 75,
                     notes: ex.notes,
+                    notesPt: language === 'pt' ? ex.notes : ex.notesPt,
                     tempo: ex.tempo,
-                  };
-                }
+                };
+                EXERCISE_DATABASE[exId] = newExercise;
+                generatedExercises.push(newExercise);
 
                 return {
                   exerciseId: exId,
@@ -140,7 +167,12 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
             };
 
             // Save to IndexedDB!
+            await Promise.all(generatedExercises.map(exercise => fitFlowDB.saveExercise(exercise)));
             await fitFlowDB.saveRoutine(newRoutine);
+            setExerciseDatabase(current => ({
+              ...current,
+              ...Object.fromEntries(generatedExercises.map(exercise => [exercise.id, exercise])),
+            }));
             setRoutinesList(prev => [newRoutine, ...prev]);
             setGeneratedRoutine(newRoutine);
             setIsAiOnlineSource(true);
@@ -155,13 +187,21 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
     }
 
     // Offline or Fallback Synthesis
-    setTimeout(async () => {
+    try {
+      await new Promise(resolve => setTimeout(resolve, 700));
       let chosenExercises: string[] = ['bench_press', 'incline_db_press', 'lateral_raise', 'tricep_pushdown'];
       let targetMuscles: MuscleGroup[] = ['chest', 'shoulders', 'triceps'];
       let routineName = 'FitFlow Offline Hyper-Overload: Push';
       let routineNamePt = 'FitFlow Hiper-Sobrecarga Offline: Push';
+      let category: WorkoutRoutine['category'] = 'Push';
 
-      if (aiFocus.includes('Pull') || aiFocus.includes('Back') || aiFocus.includes('Costas')) {
+      if (aiFocus.includes('Full')) {
+        chosenExercises = ['hanging_leg_raise', 'barbell_squat', 'bench_press', 'barbell_row'];
+        targetMuscles = ['core', 'quads', 'chest', 'back'];
+        routineName = 'FitFlow Offline Full Body';
+        routineNamePt = 'FitFlow Corpo Todo Offline';
+        category = 'Full Body';
+      } else if (aiFocus.includes('Pull') || aiFocus.includes('Back') || aiFocus.includes('Costas')) {
         chosenExercises = ['barbell_deadlift', 'lat_pulldown', 'barbell_row', 'barbell_curl'];
         targetMuscles = ['back', 'biceps', 'hamstrings'];
         routineName = 'FitFlow Offline Posterior Chain';
@@ -171,23 +211,57 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
         targetMuscles = ['quads', 'hamstrings', 'calves', 'glutes'];
         routineName = 'FitFlow Offline Lower Quad Force';
         routineNamePt = 'FitFlow Força de Pernas Offline';
+        category = 'Legs';
+      }
+
+      let compatibleExercises = chosenExercises.filter(exerciseId => {
+        const exercise = exerciseDatabase[exerciseId];
+        return exercise && isEquipmentAvailable(exercise.category, profile.equipment, exercise.equipmentRequired);
+      });
+      if (compatibleExercises.length < 3) {
+        const additionalExercises = Object.values(exerciseDatabase)
+          .filter(exercise =>
+            !compatibleExercises.includes(exercise.id) &&
+            isEquipmentAvailable(exercise.category, profile.equipment, exercise.equipmentRequired))
+          .sort((left, right) => {
+            const leftScore = (left.category === 'bodyweight' ? 2 : 0) + (left.primaryMuscle !== 'core' ? 1 : 0);
+            const rightScore = (right.category === 'bodyweight' ? 2 : 0) + (right.primaryMuscle !== 'core' ? 1 : 0);
+            return rightScore - leftScore;
+          })
+          .slice(0, 5 - compatibleExercises.length)
+          .map(exercise => exercise.id);
+        compatibleExercises = [...compatibleExercises, ...additionalExercises];
+        if (additionalExercises.length > 0) {
+          category = 'Full Body';
+          routineName = language === 'pt' ? 'FitFlow Corpo Todo Adaptado' : 'FitFlow Adapted Full Body';
+          routineNamePt = 'FitFlow Corpo Todo Adaptado';
+        }
+      }
+      if (compatibleExercises.length === 0) {
+        setGenerationError(language === 'pt'
+          ? 'Ainda não há exercícios cadastrados para os equipamentos selecionados. Atualize os equipamentos no perfil ou conecte-se para tentar novamente.'
+          : 'No exercises are currently available for the selected equipment. Update your profile equipment or connect to try again.');
+        return;
       }
 
       const newRoutine: WorkoutRoutine = {
         id: `offline-routine-${Date.now()}`,
         title: routineName,
         titlePt: routineNamePt,
-        category: 'Push',
+        category,
         targetDurationMinutes: aiDuration,
-        difficulty: 'Advanced',
-        targetMuscles,
+        difficulty: profile.experience === 'beginner' ? 'Beginner' : profile.experience === 'intermediate' ? 'Intermediate' : 'Advanced',
+        targetMuscles: targetMuscles.filter(muscle => compatibleExercises.some(id => {
+          const exercise = exerciseDatabase[id];
+          return exercise?.primaryMuscle === muscle || exercise?.secondaryMuscles?.includes(muscle);
+        })),
         xpReward: 380,
-        exercises: chosenExercises.map((exId) => {
-          const baseEx = EXERCISE_DATABASE[exId];
+        exercises: compatibleExercises.map((exId) => {
+          const baseEx = exerciseDatabase[exId];
           return {
             exerciseId: exId,
             targetRestSeconds: 75,
-            sets: Array.from({ length: 4 }, (_, i) => ({
+            sets: Array.from({ length: profile.experience === 'beginner' ? 3 : 4 }, (_, i) => ({
               id: `offline-set-${exId}-${i + 1}`,
               setNumber: i + 1,
               weight: baseEx ? baseEx.defaultWeight : 60,
@@ -205,9 +279,12 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
       setRoutinesList(prev => [newRoutine, ...prev]);
       setGeneratedRoutine(newRoutine);
       setIsAiOnlineSource(false);
-      setIsGenerating(false);
       soundManager.playSetComplete();
-    }, 700);
+    } catch {
+      setGenerationError(language === 'pt' ? 'Não foi possível salvar a rotina neste dispositivo.' : 'Could not save this routine on this device.');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -263,7 +340,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              {cat}
+              {categoryLabels[cat]}
             </button>
           ))}
         </div>
@@ -283,9 +360,19 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
 
       {/* Routine Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {filteredRoutines.length === 0 && (
+          <div className="md:col-span-2 rounded-xl border border-slate-800 bg-[#0F172A] p-5 text-sm text-slate-300">
+            {language === 'pt'
+              ? 'Nenhuma rotina cadastrada combina com seu nível e equipamentos. Ajuste os equipamentos no perfil ou gere uma rotina personalizada.'
+              : 'No saved routine matches your experience and equipment. Update equipment in your profile or generate a custom routine.'}
+          </div>
+        )}
         {filteredRoutines.map((routine) => {
           const title = language === 'pt' ? routine.titlePt : routine.title;
           const totalSets = routine.exercises.reduce((acc, ex) => acc + ex.sets.length, 0);
+          const difficultyLabel = language === 'pt'
+            ? ({ Beginner: 'Iniciante', Intermediate: 'Intermediário', Advanced: 'Avançado', Hardcore: 'Extremo' } as const)[routine.difficulty]
+            : routine.difficulty;
 
           return (
             <div
@@ -301,7 +388,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                       {routine.targetDurationMinutes} MIN
                     </span>
                     <span>·</span>
-                    <span className="uppercase text-slate-300">{routine.difficulty}</span>
+                    <span className="uppercase text-slate-300">{difficultyLabel}</span>
                     <span>·</span>
                     <span>{totalSets} SÉRIES</span>
                   </div>
@@ -324,7 +411,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                       key={muscle}
                       className="px-2 py-0.5 rounded text-[10px] font-mono-numbers uppercase tracking-wider bg-[#0F172A] border border-slate-700/80 text-slate-300"
                     >
-                      {muscle}
+                      {getMuscleLabel(muscle, language)}
                     </span>
                   ))}
                 </div>
@@ -397,12 +484,14 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                   : 'bg-amber-950/80 text-amber-400 border border-amber-500/40'
               }`}>
                 {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                <span>{isOnline ? 'Gemini 3.8 Flash Online' : 'Motor Offline Ativo'}</span>
+                <span>{language === 'pt'
+                  ? (isOnline ? 'Gemini 3.8 Flash conectado' : 'Motor offline ativo')
+                  : (isOnline ? 'Gemini 3.8 Flash Online' : 'Offline Engine Active')}</span>
               </span>
 
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-mono-numbers font-semibold bg-[#0F172A] text-[#38BDF8] border border-[#38BDF8]/40">
                 <Database className="w-3 h-3" />
-                <span>IndexedDB Auto-Save</span>
+                <span>{language === 'pt' ? 'Salvamento automático local' : 'IndexedDB Auto-Save'}</span>
               </span>
             </div>
 
@@ -418,8 +507,8 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                 <label className="text-xs font-mono-numbers uppercase text-slate-400 block mb-1.5 font-semibold">
                   {language === 'pt' ? 'Foco Muscular Principal:' : 'Primary Muscular Focus:'}
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['Push & Shoulders', 'Pull & Upper Back', 'Legs & Quads'].map((f) => (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {['Push & Shoulders', 'Pull & Upper Back', 'Legs & Quads', 'Full Body'].map((f) => (
                     <button
                       key={f}
                       type="button"
@@ -430,8 +519,8 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                           : 'border-slate-800 bg-[#1E293B] text-slate-400 hover:text-white'
                       }`}
                     >
-                      {language === 'pt' 
-                        ? (f === 'Push & Shoulders' ? 'Push & Ombros' : f === 'Pull & Upper Back' ? 'Pull & Costas' : 'Pernas & Quads')
+                      {language === 'pt'
+                        ? (f === 'Push & Shoulders' ? 'Empurrar e ombros' : f === 'Pull & Upper Back' ? 'Puxar e costas' : f === 'Legs & Quads' ? 'Pernas e quadríceps' : 'Corpo todo')
                         : f}
                     </button>
                   ))}
@@ -466,24 +555,24 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                 <label className="text-xs font-mono-numbers uppercase text-slate-400 block mb-1.5 font-semibold">
                   {language === 'pt' ? 'Equipamento Disponível:' : 'Available Equipment:'}
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Full Commercial Gym', 'Barbell & Dumbbells'].map((eq) => (
-                    <button
-                      key={eq}
-                      type="button"
-                      onClick={() => setAiEquipment(eq)}
-                      className={`p-2 rounded-xl text-xs font-mono-numbers font-semibold border text-center transition-all ${
-                        aiEquipment === eq
-                          ? 'border-[#38BDF8] bg-[#38BDF8]/15 text-[#38BDF8]'
-                          : 'border-slate-800 bg-[#1E293B] text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {language === 'pt' ? (eq === 'Full Commercial Gym' ? 'Academia Completa' : 'Barras & Halteres') : eq}
-                    </button>
-                  ))}
-                </div>
+                <p className="rounded-xl border border-slate-800 bg-[#1E293B] p-3 text-xs text-slate-300">
+                  {profile.equipment.map(equipment => ({
+                    bodyweight: language === 'pt' ? 'Peso corporal' : 'Bodyweight',
+                    pull_up_bar: language === 'pt' ? 'Barra fixa' : 'Pull-up bar',
+                    barbell: language === 'pt' ? 'Barra e anilhas' : 'Barbell',
+                    dumbbell: language === 'pt' ? 'Halteres' : 'Dumbbells',
+                    cable: language === 'pt' ? 'Cabos e polias' : 'Cables',
+                    machine: language === 'pt' ? 'Máquinas' : 'Machines',
+                    bands: language === 'pt' ? 'Elásticos' : 'Resistance bands',
+                  }[equipment])).join(' · ')}
+                  <button type="button" onClick={() => { setShowAiModal(false); onOpenProfile(); }} className="ml-2 font-semibold text-[#38BDF8] underline">
+                    {language === 'pt' ? 'Editar no perfil' : 'Edit profile'}
+                  </button>
+                </p>
               </div>
             </div>
+
+            {generationError && <p className="mb-4 rounded-lg border border-rose-500/40 bg-rose-950/30 p-3 text-xs text-rose-200" role="alert">{generationError}</p>}
 
             {/* Generate Button or Result Preview */}
             {!generatedRoutine ? (
