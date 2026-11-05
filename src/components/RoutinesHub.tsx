@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
+  Trash2,
   Play, 
   Clock, 
   Dumbbell, 
@@ -41,11 +42,15 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
   onOpenProfile,
 }) => {
   const isOnline = useOnlineStatus();
-  const [routinesList, setRoutinesList] = useState<WorkoutRoutine[]>(PRESET_ROUTINES);
+  const [routinesList, setRoutinesList] = useState<WorkoutRoutine[]>(PRESET_ROUTINES.map(routine => ({
+    ...routine,
+    createdAt: routine.createdAt || new Date().toISOString(),
+  })));
   const [exerciseDatabase, setExerciseDatabase] = useState<Record<string, Exercise>>({ ...EXERCISE_DATABASE });
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showAiModal, setShowAiModal] = useState<boolean>(false);
+  const [routineToDelete, setRoutineToDelete] = useState<string | null>(null);
 
   // AI Generator state
   const [aiFocus, setAiFocus] = useState<string>(() => profile.goals.includes('muscle_gain') ? 'Push & Shoulders' : 'Full Body');
@@ -68,7 +73,16 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
           ...Object.fromEntries(storedExercises.map(exercise => [exercise.id, exercise])),
         }));
         if (storedRoutines && storedRoutines.length > 0) {
-          setRoutinesList(storedRoutines);
+          const normalizedRoutines = storedRoutines.map(routine => (
+            routine.createdAt ? routine : { ...routine, createdAt: new Date().toISOString() }
+          ));
+          // Persist normalized creation dates for routines that did not have one yet
+          await Promise.all(
+            normalizedRoutines
+              .filter((routine, index) => !storedRoutines[index]?.createdAt)
+              .map(routine => fitFlowDB.saveRoutine(routine))
+          );
+          setRoutinesList(normalizedRoutines);
         }
       } catch (err) {
         console.warn('Could not read from IndexedDB, using preset fallback:', err);
@@ -90,6 +104,18 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
       routine.targetMuscles.some(m => m.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
+
+  const handleDeleteRoutine = async (routineId: string) => {
+    soundManager.playTick();
+    try {
+      await fitFlowDB.deleteRoutine(routineId);
+      setRoutinesList(prev => prev.filter(routine => routine.id !== routineId));
+    } catch (err) {
+      console.error('Could not delete routine:', err);
+    } finally {
+      setRoutineToDelete(null);
+    }
+  };
 
   const handleGenerateAiWorkout = async () => {
     soundManager.playTick();
@@ -129,6 +155,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
               difficulty: r.difficulty || 'Advanced',
               targetMuscles: r.targetMuscles || ['chest', 'shoulders'],
               xpReward: r.xpReward || 380,
+              createdAt: new Date().toISOString(),
               exercises: (r.exercises || []).map((ex: any, idx: number) => {
                 const exId = `ex-${Date.now()}-${idx}`;
                 // register in exercise database if new
@@ -212,6 +239,13 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
         routineName = 'FitFlow Offline Lower Quad Force';
         routineNamePt = 'FitFlow Força de Pernas Offline';
         category = 'Legs';
+      } else {
+        // Push & Shoulders (default case - no other condition matched)
+        chosenExercises = ['bench_press', 'incline_db_press', 'lateral_raise', 'tricep_pushdown'];
+        targetMuscles = ['chest', 'shoulders', 'triceps'];
+        routineName = 'FitFlow Offline Hyper-Overload: Push';
+        routineNamePt = 'FitFlow Hiper-Sobrecarga Offline: Push';
+        category = 'Push';
       }
 
       let compatibleExercises = chosenExercises.filter(exerciseId => {
@@ -231,11 +265,8 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
           .slice(0, 5 - compatibleExercises.length)
           .map(exercise => exercise.id);
         compatibleExercises = [...compatibleExercises, ...additionalExercises];
-        if (additionalExercises.length > 0) {
-          category = 'Full Body';
-          routineName = language === 'pt' ? 'FitFlow Corpo Todo Adaptado' : 'FitFlow Adapted Full Body';
-          routineNamePt = 'FitFlow Corpo Todo Adaptado';
-        }
+        // Preserve original category and routine name even when adding additional exercises
+        // The original focus selection should not be overridden to Full Body
       }
       if (compatibleExercises.length === 0) {
         setGenerationError(language === 'pt'
@@ -393,10 +424,21 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                     <span>{totalSets} SÉRIES</span>
                   </div>
 
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono-numbers font-bold bg-[#8B5CF6]/15 text-[#C4B5FD] border border-[#8B5CF6]/40 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-[#8B5CF6]" />
-                    +{routine.xpReward} XP
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono-numbers font-bold bg-[#8B5CF6]/15 text-[#C4B5FD] border border-[#8B5CF6]/40 flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-[#8B5CF6]" />
+                      +{routine.xpReward} XP
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRoutineToDelete(routine.id)}
+                      className="w-8 h-8 rounded-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center transition-colors"
+                      aria-label={language === 'pt' ? 'Excluir rotina' : 'Delete routine'}
+                      title={language === 'pt' ? 'Excluir rotina' : 'Delete routine'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Title */}
@@ -404,7 +446,11 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                   {title}
                 </h3>
 
-                {/* Target Muscle Badges */}
+                {/* Created At */}
+                <p className="text-[10px] font-mono-numbers text-slate-500 mb-3">
+                  {language === 'pt' ? 'Criado em: ' : 'Created: '}
+                  {new Date(routine.createdAt || Date.now()).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')}
+                </p>
                 <div className="flex flex-wrap items-center gap-1.5 mb-4">
                   {routine.targetMuscles.map((muscle) => (
                     <span
@@ -422,7 +468,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                     {language === 'pt' ? 'EXERCÍCIOS INCLUSOS:' : 'EXERCISE ROSTER:'}
                   </span>
                   {routine.exercises.map((item, idx) => {
-                    const exData = EXERCISE_DATABASE[item.exerciseId];
+                    const exData = exerciseDatabase[item.exerciseId];
                     if (!exData) return null;
                     const exName = language === 'pt' ? exData.namePt : exData.name;
                     return (
@@ -623,6 +669,37 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
           </div>
         </div>
       )}
+      {routineToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-sm bg-[#1E293B] border border-slate-700 rounded-3xl p-6 shadow-2xl">
+            <h3 className="text-lg font-bold font-display text-white mb-2">
+              {language === 'pt' ? 'Excluir rotina' : 'Delete routine'}
+            </h3>
+            <p className="text-sm text-slate-300 mb-6">
+              {language === 'pt'
+                ? 'Tem certeza que deseja excluir esta rotina? Esta ação não pode ser desfeita.'
+                : 'Are you sure you want to delete this routine? This action cannot be undone.'}
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setRoutineToDelete(null)}
+                className="flex-1 h-11 rounded-full bg-[#0F172A] border border-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider hover:border-slate-500 transition-colors"
+              >
+                {language === 'pt' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteRoutine(routineToDelete)}
+                className="flex-1 h-11 rounded-full bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs uppercase tracking-wider transition-colors"
+              >
+                {language === 'pt' ? 'Excluir' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

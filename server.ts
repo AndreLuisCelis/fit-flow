@@ -98,13 +98,14 @@ User Parameters & Historical Telemetry:
 - Athlete Fatigue Level: ${fatigueLevel || 'Normal'}
 - Specific Training Goal: ${targetGoal || 'Hipertrofia & Sobrecarga Progressiva'}
 - Athlete's Most Frequent Exercises from IndexedDB History: ${freqExercisesText}
+- Request Variation Seed: ${Date.now()}-${Math.random().toString(36).slice(2)}
 
 Coaching Directives:
 1. Prioritize and intelligently incorporate the athlete's most frequent exercises (or progressive overload variations of them) that strictly match the available equipment.
 2. Only select exercises that can be performed using the specified available equipment.
   For bodyweight movements that require apparatus (for example, hanging leg raises), declare that apparatus in equipmentRequired.
 3. Include specific tempo (e.g. 3-0-1-0), realistic default starting weights in kg, target rep ranges, and rest intervals.
-4. Provide 1-2 sharp, tactical coaching notes highlighting why this routine matches their historical strengths.
+5. Use the request variation seed to ensure this routine is not identical to previous generations; vary exercise order, rep ranges, loads and rest periods while staying within equipment constraints.
 
 Respond ONLY with valid JSON (no markdown formatting, no code block backticks) adhering strictly to this schema:
 {
@@ -137,6 +138,8 @@ Respond ONLY with valid JSON (no markdown formatting, no code block backticks) a
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
+        temperature: 0.9,
+        topP: 0.95,
       },
     });
 
@@ -191,17 +194,54 @@ function generateProfileFallback(
   const fallback = generateFallbackRoutine(focus, duration, language);
   const focusText = (focus || '').toLowerCase();
   const prefersFullBody = focusText.includes('full') || goals.some(goal => goal === 'weight_loss' || goal === 'fitness' || goal === 'health');
-  let exercises = fallback.exercises.filter(exercise => equipment.includes(exercise.category as TrainingEquipment));
+  const focusLower = (focus || '').toLowerCase();
+  const focusMuscleMap: Record<string, string[]> = {
+    push: ['chest', 'shoulders', 'triceps'],
+    pull: ['back', 'biceps', 'hamstrings'],
+    legs: ['quads', 'glutes', 'hamstrings', 'calves'],
+    upper: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
+    lower: ['quads', 'glutes', 'hamstrings', 'calves'],
+  };
+  let targetFocusMuscles: string[] = [];
+  Object.keys(focusMuscleMap).forEach((key) => {
+    if (focusLower.includes(key)) targetFocusMuscles = focusMuscleMap[key];
+  });
+  if (targetFocusMuscles.length === 0) {
+    targetFocusMuscles = ['chest', 'back', 'shoulders', 'quads'];
+  }
+
+  let exercises: any[] = [];
+  if (!prefersFullBody) {
+    const compatible = Object.values(EXERCISE_DATABASE)
+      .filter((exercise: Exercise) => isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired) && targetFocusMuscles.includes(exercise.primaryMuscle))
+      .sort(() => Math.random() - 0.5);
+    const count = Math.min(compatible.length, 4 + (Math.random() > 0.5 ? 1 : 0));
+    exercises = compatible.slice(0, count).map((exercise: Exercise) => ({
+      name: isPt ? exercise.namePt : exercise.name,
+      primaryMuscle: exercise.primaryMuscle,
+      category: exercise.category,
+      ...(exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {}),
+      defaultWeight: exercise.defaultWeight,
+      defaultReps: exercise.defaultReps,
+      setsCount: experience === 'beginner' ? Math.min(3, exercise.defaultSets) : exercise.defaultSets,
+      targetRestSeconds: exercise.restSeconds,
+      tempo: exercise.tempo || '',
+      notes: exercise.notes || '',
+      ...(exercise.notesPt ? { notesPt: exercise.notesPt } : {}),
+    }));
+  }
+
+  if (exercises.length === 0) {
+    exercises = fallback.exercises
+      .filter((exercise: any) => equipment.includes(exercise.category as TrainingEquipment))
+      .sort(() => Math.random() - 0.5);
+  }
   const needsExerciseCatalogFallback = exercises.length === 0;
 
   if (prefersFullBody || needsExerciseCatalogFallback) {
     const compatible = Object.values(EXERCISE_DATABASE)
       .filter((exercise: Exercise) => isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired))
-      .sort((left: Exercise, right: Exercise) => {
-        const leftScore = (left.category === 'bodyweight' ? 3 : 0) + (left.primaryMuscle !== 'core' ? 1 : 0);
-        const rightScore = (right.category === 'bodyweight' ? 3 : 0) + (right.primaryMuscle !== 'core' ? 1 : 0);
-        return rightScore - leftScore;
-      })
+      .sort(() => Math.random() - 0.5)
       .slice(0, 5);
     exercises = compatible.map((exercise: Exercise) => ({
       name: isPt ? exercise.namePt : exercise.name,
@@ -222,12 +262,23 @@ function generateProfileFallback(
 
   if (exercises.length === 0) return null;
 
+  // Introduce light variation so repeated generations are not identical
+  exercises = exercises.map(exercise => ({
+    ...exercise,
+    setsCount: Math.max(2, (exercise.setsCount || 3) + (Math.random() > 0.5 ? 1 : 0)),
+    defaultReps: Math.max(5, (exercise.defaultReps || 10) + (Math.floor(Math.random() * 3) - 1)),
+    defaultWeight: typeof exercise.defaultWeight === 'number'
+      ? Math.max(0, Math.round(exercise.defaultWeight * (0.9 + Math.random() * 0.2)))
+      : exercise.defaultWeight,
+    targetRestSeconds: [60, 75, 90][Math.floor(Math.random() * 3)],
+  }));
+
   const targetMuscles = [...new Set(exercises.map(exercise => exercise.primaryMuscle))];
   const candidate = {
     ...fallback,
     title: prefersFullBody || needsExerciseCatalogFallback
       ? (isPt ? 'FitFlow Corpo Todo Adaptado' : 'FitFlow Adapted Full Body')
-      : fallback.title,
+      : `${fallback.title} ${['· Alfa','· Beta','· Gama','· Delta'][Math.floor(Math.random() * 4)]}`,
     category: prefersFullBody || needsExerciseCatalogFallback ? 'Full Body' : fallback.category,
     difficulty: experience === 'beginner' ? 'Beginner' : experience === 'intermediate' ? 'Intermediate' : 'Advanced',
     targetDurationMinutes: duration || 45,

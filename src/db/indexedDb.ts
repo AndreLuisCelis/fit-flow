@@ -87,7 +87,7 @@ class FitFlowDatabase {
         countReq.onsuccess = () => {
           if (countReq.result === 0) {
             // Seed preset routines
-            PRESET_ROUTINES.forEach((r) => routinesStore.put(r));
+            PRESET_ROUTINES.forEach((r) => routinesStore.put({ ...r, createdAt: r.createdAt || new Date().toISOString() }));
           }
         };
 

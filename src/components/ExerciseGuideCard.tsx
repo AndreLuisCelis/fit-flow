@@ -60,12 +60,16 @@ export const ExerciseGuideCard: React.FC<ExerciseGuideCardProps> = ({
           transition={{ duration: 0.35, ease: 'easeOut' }}
         >
           <p className="text-xs leading-relaxed text-slate-300">
-            {language === 'pt' ? guide.descriptionPt : guide.description}
+            {language === 'pt'
+              ? guide.descriptionPt || guide.description
+              : guide.description || guide.descriptionPt}
           </p>
         </motion.div>
       ) : (
         <p className="text-xs leading-relaxed text-slate-400 italic">
-          {language === 'pt' ? 'Sem descrição de execução disponível.' : 'Execution description not available.'}
+          {language === 'pt'
+            ? guide?.descriptionPt || 'Sem descrição de execução disponível.'
+            : guide?.description || 'Execution description not available.'}
         </p>
       )}
     </div>

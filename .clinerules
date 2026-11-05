@@ -1,0 +1,236 @@
+
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+# Especificação Técnica: Implementação de Clean Architecture para Agentes de IA (Next.js & Carbon Design System)
+
+Este documento define as regras arquiteturais, restrições e diretrizes de design que você, como Agente de IA, deve seguir rigorosamente ao gerar, refatorar ou analisar o código deste projeto frontend.
+
+---
+
+## 1. Princípio Fundamental: A Regra da Dependência
+
+O código deve ser dividido em camadas concêntricas. **As dependências de código devem apontar apenas para dentro.** 
+- Camadas internas não sabem nada sobre as camadas externas.
+- Componentes visuais (`@carbon/react`), Hooks do React, utilitários do Next.js (como `useRouter`, `params`) ou chamadas diretas de `fetch` pertencem à camada mais externa e **nunca** devem aparecer ou influenciar o código das camadas de Domínio ou Casos de Uso.
+
+---
+
+## 2. Estrutura de Pastas e Camadas
+
+Separação estrita de pastas. Este é o estado real do repositório: rotas do Next.js na raiz `app/` e camadas dentro de `src/`.
+
+```text
+app/                          # Camada 4 — rotas (App Router) + fronteira HTTP
+├── page.tsx                  # redireciona para /dashboard
+├── login/page.tsx  register/page.tsx  dashboard/page.tsx
+└── api/                      # route handlers
+    ├── auth/register/route.ts
+    ├── auth/login/route.ts
+    ├── auth/logout/route.ts
+    ├── auth/me/route.ts
+    └── performance/route.ts
+
+src/
+├── domain/                   # Camada 1 — regras de negócio core (mais interna)
+│   ├── entities/user.ts      # entidade `User` (classe) + projeção `PublicUser`
+│   └── value-objects/credentials.ts      # normalização/validação puras
+├── use-cases/                # Camada 2 — regras da aplicação
+│   ├── ports/*.interface.ts  # IUserRepository, ISessionRepository, IPerformanceRepository, IPasswordHasher
+│   ├── auth-errors.ts        # erros de aplicação
+│   └── register-user.use-case.ts         # padrão: <verbo>-<objeto>.use-case.ts
+├── adapters/                 # Camada 3 — tradução de dados e estado
+│   ├── gateways/             # implementações dos ports + store de dados
+│   │   ├── composition.ts    # RAIZ DE COMPOSIÇÃO (gateways + casos de uso + fachada)
+│   │   ├── db.ts             # escolhe o store: Redis (env) ou ficheiro local
+│   │   ├── document-store.interface.ts  # IDocumentStore + `DbData`/`UserRecord`
+│   │   ├── json-db.ts        # store de ficheiro `data/db.json` (dev local)
+│   │   ├── redis-db.ts       # store Upstash Redis (Vercel/produção)
+│   │   ├── json-user-repository.ts / json-session-repository.ts / json-performance-repository.ts
+│   │   └── scrypt-password-hasher.ts
+│   └── view-models/          # hooks React: use-auth-session.ts, use-performance-report.ts
+└── infrastructure/           # Camada 4 — frameworks e UI
+    ├── components/           # UI @carbon/react: auth-form.tsx, dashboard-shell.tsx, performance-report.tsx
+    └── http/                 # api-error.ts (erro → status HTTP), auth-session.ts (cookie httpOnly)
+```
+
+Imports entre camadas usam sempre o alias `@/src/...` (imports relativos apenas dentro da mesma pasta). Persistência local em `data/db.json`.
+
+**Legado — não expandir nem usar como referência:** as pastas `components/` e `domain/` na raiz do repositório. O `components/` ainda é importado por `app/layout.tsx` e por `src/infrastructure/components/dashboard-shell.tsx`; o `domain/` da raiz (`errors.ts`, `value-objects/email.ts`, `value-objects/password.ts`) não é importado por ninguém. Código novo vai sempre para `src/`.
+
+---
+
+## 3. Diretrizes Detalhadas por Camada
+
+### 3.1. Camada Domain (Domínio)
+- **O que faz:** define as entidades e as regras de negócio puras, independentes de tecnologia.
+- **Restrições estritas:**
+  - **ZERO dependências externas.** Proibido importar `next/*`, `react`, `@carbon/*`, `node:*` ou libs de terceiros. As únicas APIs de runtime permitidas são `Date`, `Math` e `crypto.randomUUID()`.
+  - Entidades são **classes** (`User`) com invariantes garantidas no construtor; a normalização/validação fica nos value-objects (`src/domain/value-objects/credentials.ts` → `normalizeName`, `normalizeEmail`, `assertValidPassword`).
+  - Erros de negócio são classes exportadas pelo próprio domínio (`InvalidNameError`, `InvalidEmailError`, `InvalidPasswordError`).
+  - O domínio nunca devolve DTO de HTTP nem estrutura de UI. A projeção `PublicUser` + `toPublicUser()` existe para que segredos como `passwordHash` não escapem dos adapters.
+
+Template (implementação completa em `src/domain/entities/user.ts`):
+```ts
+export class User {
+  readonly id: string
+  readonly name: string
+  readonly email: string
+  readonly passwordHash: string
+  readonly createdAt: string
+
+  constructor(
+    id: string,
+    name: string,
+    email: string,
+    passwordHash: string,
+    createdAt: string = new Date().toISOString(),
+  ) {
+    this.id = id
+    this.name = normalizeName(name)
+    this.email = normalizeEmail(email)
+    this.passwordHash = passwordHash
+    this.createdAt = createdAt
+  }
+}
+
+export type PublicUser = Pick<User, 'id' | 'name' | 'email' | 'createdAt'>
+```
+
+### 3.2. Camada Use Cases (Casos de Uso)
+- **O que faz:** orquestra o fluxo e aplica as regras de aplicação (ex.: verificar e-mail duplicado, gerar hash, calcular métricas de desempenho).
+- **Formato obrigatório:** uma **classe** por arquivo, nome `<Verbo><Objeto>UseCase`, arquivo `<verbo>-<objeto>.use-case.ts`, dependências injetadas pelo construtor (tipadas pela interface do port) e método público `execute(...)`. Não usar funções soltas nem `deps` como primeiro argumento.
+- **Portas (inversão de dependência):** qualquer acesso externo (storage, API, hash de senha, sessão) passa por uma interface em `src/use-cases/ports/<nome>.interface.ts`. O caso de uso não sabe se o dado vem de JSON em disco, REST ou mock.
+- **Entrada:** `unknown` quando o dado vem do HTTP (validado/normalizado via domínio); tipada quando o chamador é interno (ex.: `userId: string`).
+- **Saída:** entidade do domínio ou objeto plano de resultado — nunca DTO de HTTP, nunca estrutura de UI.
+- **Identidade:** o caso de uso cria a entidade (`new User(crypto.randomUUID(), ...)`, com `createdAt` automático) e entrega à port (`save`). O adaptador não gera IDs.
+- **Restrições estritas:** zero `fetch`, zero `next/*`, zero React, zero Carbon. Erros de aplicação (`src/use-cases/auth-errors.ts`) em vez de códigos HTTP.
+
+Template (implementação real em `src/use-cases/register-user.use-case.ts`):
+```ts
+import { User } from '@/src/domain/entities/user'
+import type { IUserRepository } from '@/src/use-cases/ports/user-repository.interface'
+
+export class RegisterUserUseCase {
+  constructor(
+    private readonly userRepo: IUserRepository,
+    private readonly hasher: IPasswordHasher,
+  ) {}
+
+  async execute(input: unknown): Promise<User> {
+    // regras de aplicação: validar, checar duplicidade, gerar hash...
+    const newUser = new User(crypto.randomUUID(), name, email, passwordHash)
+    await this.userRepo.save(newUser)
+    return newUser
+  }
+}
+```
+
+Esqueleto mínimo do padrão: `constructor(private readonly <port>: I<Port>)` + `async execute(<entrada>): Promise<Entidade | Resultado>`.
+
+### 3.3. Camada Adapters (Adaptadores)
+- **Gateways:** implementam os ports (`implements IUserRepository`) e traduzem registo de persistência ↔ entidade (`toEntity`/`toRecord` em `json-user-repository.ts`). O I/O de infraestrutura (`node:fs`, `node:crypto`) vive aqui.
+- **Store de dados:** os repositórios falam com `IDocumentStore` (`document-store.interface.ts`) via `read`/`mutate` de `db.ts`, que escolhe a implementação — Redis quando há credenciais (`UPSTASH_REDIS_REST_*` / `KV_REST_API_*`) e ficheiro local (`data/db.json`) caso contrário. Fora dos adapters ninguém sabe onde o dado mora, e um backend novo é só uma nova implementação de `IDocumentStore`.
+- **Raiz de composição:** `src/adapters/gateways/composition.ts` é o único ponto que conhece todas as camadas — instancia os gateways, injeta-os nos casos de uso (`new RegisterUserUseCase(users, hasher)`) e expõe a fachada consumida pela infraestrutura (`auth`, `performanceApi`). Casos de uso não são instanciados em páginas nem em route handlers.
+- **Projeção de segredos:** a fachada aplica `toPublicUser()` antes de devolver ao HTTP; `passwordHash` nunca sai dos adapters.
+- **View Models:** hooks `'use client'` que falam com as rotas HTTP via `fetch`, gerenciam `useState`/`useEffect` e devolvem dados limpos (`useAuthSession` → `signIn`/`signUp`/`signOut`; `usePerformanceReport` → `stats`/`recordMovement`). Sem regra de negócio dentro do hook.
+
+### 3.4. Camada Infrastructure (Infraestrutura)
+- **O que faz:** onde Next.js, React 19 e Carbon ganham vida (páginas, route handlers, componentes).
+- **Route handlers:** importam apenas a fachada de composição, capturam erros com `errorResponse(error)` (`src/infrastructure/http/api-error.ts`) e traduzem para status HTTP (409 e-mail duplicado, 401 credenciais/sessão, 400 validação, 500 inesperado). Cookie/sessão ficam em `src/infrastructure/http/auth-session.ts`.
+- **Componentes Carbon:** o mais "burros" possível — renderizam dados já preparados e capturam eventos, delegando decisões aos view models. Sem condicional de negócio nem cálculo.
+- **UI:** apenas `@carbon/react` e `@carbon/icons-react`; tokens `var(--cds-*)` e Sass Carbon (ver `docs/STYLE_GUIDE.md`), com acessibilidade (foco, teclado, `aria-label`).
+
+---
+
+## 4. Fluxo de Execução Padrão (fluxos reais do app)
+
+Em qualquer renderização ou interação, os dados atravessam as camadas sempre no mesmo sentido: infraestrutura → adaptador → caso de uso → domínio → de volta como objeto plano → Carbon.
+
+### 4.1. Escrita autenticada — `POST /api/auth/register`
+1. **Infrastructure:** `app/api/auth/register/route.ts` lê o body e chama a fachada já composta — `await auth.register(body)`.
+2. **Composição:** `src/adapters/gateways/composition.ts` já instanciou `JsonUserRepository` + `ScryptPasswordHasher` e injetou-os em `RegisterUserUseCase`.
+3. **Use Case & Domínio:** o caso de uso normaliza/valida via domínio, checa duplicidade pela port, gera o hash, cria a entidade (`new User(crypto.randomUUID(), ...)`) e chama `userRepo.save(user)`.
+4. **Adapter:** `JsonUserRepository` converte a entidade no registo plano e persiste em `data/db.json`; a fachada devolve `toPublicUser(user)`.
+5. **Infrastructure:** a rota responde `201` com o utilizador público e grava o cookie httpOnly de sessão.
+
+### 4.2. Leitura na UI — `GET /api/performance`
+1. **UI:** o componente Carbon (`performance-report.tsx`) consome o view model `usePerformanceReport()`, que faz `fetch('/api/performance')` e expõe `stats`/`loading`/`error`.
+2. **Fronteira HTTP:** `app/api/performance/route.ts` resolve a sessão com `auth.currentUser(token)` (401 se inválida) e chama `performanceApi.get(userId)`.
+3. **Use Case → Port → Gateway:** `GetPerformanceUseCase` lê os movimentos pela `IPerformanceRepository` e aplica a regra de negócio (`computeStats`, meta diária), devolvendo um objeto plano.
+4. **UI:** o componente apenas renderiza o dado pronto — nenhum cálculo de negócio no JSX.
+
+---
+
+## 5. Instruções de Codificação para a IA
+
+1. **Interfaces primeiro:** qualquer dependência nova (API, storage, hash, sessão, relógio) começa por um contrato em `src/use-cases/ports/<nome>.interface.ts`; os gateways existentes (`Json*Repository`, `ScryptPasswordHasher`) são o modelo de implementação.
+2. **Casos de uso no formato padrão:** classe + construtor com ports + `execute()` (ver 3.2). Nunca criar funções soltas e nunca instanciar gateway dentro do caso de uso.
+3. **Entidades com validação interna:** criar classes com invariantes no construtor e instanciá-las no caso de uso (`crypto.randomUUID()` no caso de uso, `createdAt` automático na entidade).
+4. **Separação estrita da UI:** nenhuma regra de negócio, cálculo ou condicional de domínio dentro de componentes React/`@carbon/react`. Preparar o dado perfeitamente no caso de uso ou no view model.
+5. **Tratamento de erros:** exceções de negócio são disparadas nas camadas internas (`InvalidCredentialsError`, `EmailAlreadyRegisteredError`, `InvalidEmailError`...); `src/infrastructure/http/api-error.ts` mapeia para o status HTTP e a UI mostra `InlineNotification`/modal Carbon.
+6. **Respeito ao ecossistema Next.js + Sass:** `next: { revalidate }`, `params`, Server Actions, cookies e `fetch` ficam limitados a `infrastructure` ou `adapters/gateways`, nunca violando os casos de uso.
+7. **Nunca expor segredos:** fora dos adapters, utilizador é sempre `PublicUser` via `toPublicUser()` — `passwordHash` não entra em resposta HTTP, view model ou componente.
+8. **Imports de camada:** usar `@/src/...`; não criar caminhos alternativos nem duplicar código na raiz do repositório.
+9. **Verificação antes de entregar:** `npx tsc --noEmit` e `npm run build` limpos; em mudanças de fluxo HTTP, validar as rotas (`register`, `login`, `me`, `logout`, `performance`) com um smoke test.

@@ -64,6 +64,7 @@ export interface WorkoutRoutine {
   targetMuscles: MuscleGroup[];
   exercises: ExerciseInRoutine[];
   xpReward: number;
+  createdAt?: string;
 }
 
 export interface ActiveWorkoutSession {

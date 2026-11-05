@@ -310,6 +310,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       targetMuscles: generatedRoutine.targetMuscles || ['chest'],
       exercises: exercisesInRoutine,
       xpReward: generatedRoutine.xpReward || 380,
+      createdAt: new Date().toISOString(),
     };
   };
 

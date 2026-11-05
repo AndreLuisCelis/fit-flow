@@ -68,12 +68,14 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
     />
   </div>
 
-  // Convert kg to display unit
+  // Convert kg to display unit, rounding to .0 or .5 increments
   const formatWeight = (kg: number) => {
     if (unit === 'lbs') {
-      return Math.round(kg * 2.20462);
+      // Convert to lbs then round to nearest 0.5 lb
+      return Math.round(kg * 2.20462 * 2) / 2;
     }
-    return kg;
+    // Round to nearest 0.5 kg
+    return Math.round(kg * 2) / 2;
   };
 
   const convertDisplayToKg = (displayVal: number) => {
