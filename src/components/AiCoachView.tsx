@@ -31,6 +31,7 @@ import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import { validateGeneratedWorkout } from '../utils/workoutPersonalization';
 import { getMuscleLabel } from '../utils/localization';
+import { extractRealFrequentExercises, filterRealSessions } from '../services/workoutHistory';
 
 interface AiCoachViewProps {
   onStartRoutine: (routine: WorkoutRoutine) => void;
@@ -93,41 +94,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
         const routines = await fitFlowDB.getRoutines();
         const exercises = await fitFlowDB.getExercises();
 
-        // Exercise lookup by ID
-        const exerciseNameMap: Record<string, string> = {};
-        exercises.forEach(ex => {
-          exerciseNameMap[ex.id] = language === 'pt' ? ex.namePt || ex.name : ex.name;
-        });
-
-        // Frequency map
-        const freqMap: Record<string, number> = {};
-
-        // 1. Tally from completed sessions and PRs
-        history.forEach(session => {
-          // Check PR names
-          if (session.prsAchieved) {
-            session.prsAchieved.forEach(pr => {
-              const cleaned = pr.split(/\d/)[0].trim();
-              if (cleaned) {
-                freqMap[cleaned] = (freqMap[cleaned] || 0) + 2;
-              }
-            });
-          }
-
-          // Cross-reference with routines in IndexedDB
-          const matchedRoutine = routines.find(r => r.title === session.routineTitle || r.titlePt === session.routineTitle);
-          if (matchedRoutine && matchedRoutine.exercises) {
-            matchedRoutine.exercises.forEach(exInR => {
-              const name = exerciseNameMap[exInR.exerciseId] || exInR.exerciseId;
-              freqMap[name] = (freqMap[name] || 0) + 1;
-            });
-          }
-        });
-
-        // Convert to array
-        const sorted = Object.entries(freqMap)
-          .map(([name, count]) => ({ name, count }))
-          .sort((a, b) => b.count - a.count);
+        const sorted = extractRealFrequentExercises(history, routines, exercises, language);
         setFrequentExercises(sorted.slice(0, 8));
       } catch (err) {
         console.warn('Error reading from IndexedDB:', err);
@@ -372,7 +339,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             <div className="bg-[#1E293B] border border-slate-800 rounded-2xl px-3.5 py-2 flex items-center gap-2">
               <Database className="w-4 h-4 text-[#38BDF8]" />
               <span className="text-xs font-mono-numbers text-slate-300">
-                {completedSessions.length} {language === 'pt' ? 'treinos analisados' : 'sessions analyzed'}
+                {filterRealSessions(completedSessions).length} {language === 'pt' ? 'treinos analisados' : 'sessions analyzed'}
               </span>
             </div>
           </div>

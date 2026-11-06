@@ -93,6 +93,7 @@ export interface CompletedSessionSummary {
   repsCount: number;
   xpEarned: number;
   prsAchieved: string[];
+  isDemo?: boolean;
 }
 
 export interface MasteryBadge {

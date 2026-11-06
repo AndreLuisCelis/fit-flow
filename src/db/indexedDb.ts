@@ -1,22 +1,38 @@
 import { WorkoutRoutine, Exercise, CompletedSessionSummary } from '../types/workout';
 import { PRESET_ROUTINES, EXERCISE_DATABASE } from '../data/presetRoutines';
+import { isDemoSession, filterRealSessions } from '../services/workoutHistory';
 
 const DB_NAME = 'FitFlowDB';
 const DB_VERSION = 1;
 
-class FitFlowDatabase {
+export class FitFlowDatabase {
   private dbPromise: Promise<IDBDatabase> | null = null;
+
+  constructor(private idbFactory?: IDBFactory) {}
+
+  private getIdb(): IDBFactory | undefined {
+    if (this.idbFactory) return this.idbFactory;
+    if (typeof window !== 'undefined' && window.indexedDB) {
+      return window.indexedDB;
+    }
+    return undefined;
+  }
+
+  public resetConnection(): void {
+    this.dbPromise = null;
+  }
 
   private openDB(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
 
     this.dbPromise = new Promise((resolve, reject) => {
-      if (typeof window === 'undefined' || !window.indexedDB) {
+      const idb = this.getIdb();
+      if (!idb) {
         reject(new Error('IndexedDB not supported in this environment'));
         return;
       }
 
-      const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+      const request = idb.open(DB_NAME, DB_VERSION);
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
@@ -40,8 +56,10 @@ class FitFlowDatabase {
 
       request.onsuccess = async () => {
         const db = request.result;
-        // Seed default exercises and preset routines if empty
+        // Seed default exercises and preset routines if empty (never seeds demo sessions)
         await this.seedDefaultsIfEmpty(db);
+        // Clean up legacy fictitious sessions from existing installations (safe & idempotent)
+        await this.migrateLegacyDemoSessions(db);
         resolve(db);
       };
 
@@ -56,10 +74,9 @@ class FitFlowDatabase {
   private async seedDefaultsIfEmpty(db: IDBDatabase): Promise<void> {
     return new Promise((resolve) => {
       try {
-        const tx = db.transaction(['routines', 'exercises', 'history'], 'readwrite');
+        const tx = db.transaction(['routines', 'exercises'], 'readwrite');
         const routinesStore = tx.objectStore('routines');
         const exercisesStore = tx.objectStore('exercises');
-        const historyStore = tx.objectStore('history');
 
         // Add new definitions and migrate localized notes/equipment requirements.
         Object.values(EXERCISE_DATABASE).forEach((exercise) => {
@@ -74,7 +91,10 @@ class FitFlowDatabase {
                 existing.notesPt = exercise.notesPt;
                 changed = true;
               }
-              if (exercise.equipmentRequired?.length && JSON.stringify(existing.equipmentRequired) !== JSON.stringify(exercise.equipmentRequired)) {
+              if (
+                exercise.equipmentRequired?.length &&
+                JSON.stringify(existing.equipmentRequired) !== JSON.stringify(exercise.equipmentRequired)
+              ) {
                 existing.equipmentRequired = exercise.equipmentRequired;
                 changed = true;
               }
@@ -87,7 +107,9 @@ class FitFlowDatabase {
         countReq.onsuccess = () => {
           if (countReq.result === 0) {
             // Seed preset routines
-            PRESET_ROUTINES.forEach((r) => routinesStore.put({ ...r, createdAt: r.createdAt || new Date().toISOString() }));
+            PRESET_ROUTINES.forEach((r) =>
+              routinesStore.put({ ...r, createdAt: r.createdAt || new Date().toISOString() }),
+            );
           }
         };
 
@@ -99,42 +121,50 @@ class FitFlowDatabase {
           }
         };
 
-        const histCountReq = historyStore.count();
-        histCountReq.onsuccess = () => {
-          if (histCountReq.result === 0) {
-            // Seed sample past sessions
-            const sampleHistory: CompletedSessionSummary[] = [
-              {
-                id: 'sess-seed-1',
-                date: '2026-10-30',
-                routineTitle: 'Push Alfa: Hipertrofia & Ombros',
-                durationSeconds: 3120,
-                totalVolumeKg: 10450,
-                setsCount: 17,
-                repsCount: 154,
-                xpEarned: 350,
-                prsAchieved: ['Supino Reto 90kg × 8'],
-              },
-              {
-                id: 'sess-seed-2',
-                date: '2026-10-28',
-                routineTitle: 'Leg Hiper-Drive: Quadríceps & Glúteos',
-                durationSeconds: 3400,
-                totalVolumeKg: 13500,
-                setsCount: 18,
-                repsCount: 168,
-                xpEarned: 400,
-                prsAchieved: ['Agachamento 120kg × 6'],
-              },
-            ];
-            sampleHistory.forEach((h) => historyStore.put(h));
+        // Note: Production history store is NEVER seeded with fictitious/demo workouts.
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  /**
+   * Safe and idempotent migration for existing installations.
+   * Scans the history object store and removes legacy demonstration records (sess-seed-1, sess-seed-2),
+   * while completely preserving all legitimate user sessions.
+   */
+  public async migrateLegacyDemoSessions(db: IDBDatabase): Promise<{ removed: number; preserved: number }> {
+    return new Promise((resolve) => {
+      try {
+        if (!db.objectStoreNames.contains('history')) {
+          resolve({ removed: 0, preserved: 0 });
+          return;
+        }
+
+        const tx = db.transaction('history', 'readwrite');
+        const store = tx.objectStore('history');
+        const getAllReq = store.getAll();
+        let removed = 0;
+        let preserved = 0;
+
+        getAllReq.onsuccess = () => {
+          const sessions = (getAllReq.result || []) as CompletedSessionSummary[];
+          for (const session of sessions) {
+            if (isDemoSession(session)) {
+              store.delete(session.id);
+              removed++;
+            } else {
+              preserved++;
+            }
           }
         };
 
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => resolve(); // continue gracefully even if seeding fails
+        tx.oncomplete = () => resolve({ removed, preserved });
+        tx.onerror = () => resolve({ removed: 0, preserved: 0 });
       } catch {
-        resolve();
+        resolve({ removed: 0, preserved: 0 });
       }
     });
   }
@@ -205,15 +235,23 @@ class FitFlowDatabase {
       const request = store.getAll();
       request.onsuccess = () => {
         const results = (request.result || []) as CompletedSessionSummary[];
+        // Filter out any demonstration sessions defensively
+        const realSessions = filterRealSessions(results);
         // Sort newest first
-        results.sort((a, b) => (a.date < b.date ? 1 : -1));
-        resolve(results);
+        realSessions.sort((a, b) => (a.date < b.date ? 1 : -1));
+        resolve(realSessions);
       };
       request.onerror = () => reject(request.error);
     });
   }
 
   public async addHistory(session: CompletedSessionSummary): Promise<void> {
+    // Prevent fictitious / demo sessions from entering production storage
+    if (isDemoSession(session)) {
+      console.warn('[FitFlowDB] Tentativa de salvar sessão demonstrativa no histórico de produção bloqueada.');
+      return;
+    }
+
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction('history', 'readwrite');
@@ -223,6 +261,32 @@ class FitFlowDatabase {
       request.onerror = () => reject(request.error);
     });
   }
+
+  public async deleteHistory(id: string): Promise<void> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('history', 'readwrite');
+      const store = tx.objectStore('history');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  public async clearHistory(): Promise<void> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('history', 'readwrite');
+      const store = tx.objectStore('history');
+      const request = store.clear();
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+}
+
+export function createFitFlowDatabase(idbFactory?: IDBFactory): FitFlowDatabase {
+  return new FitFlowDatabase(idbFactory);
 }
 
 export const fitFlowDB = new FitFlowDatabase();

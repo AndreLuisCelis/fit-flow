@@ -28,6 +28,7 @@ import { MuscleDiagram } from './MuscleDiagram';
 import { PersonalRecordsGallery } from './PersonalRecordsGallery';
 import { soundManager } from '../utils/audio';
 import { getMuscleLabel } from '../utils/localization';
+import { filterRealSessions } from '../services/workoutHistory';
 
 interface AnalyticsViewProps {
   completedSessions: CompletedSessionSummary[];
@@ -52,6 +53,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 }) => {
   const [selectedMuscleFocus, setSelectedMuscleFocus] = useState<MuscleGroup>('chest');
   const [selectedExercise, setSelectedExercise] = useState<string>('bench_press');
+
+  const realSessions = useMemo(() => filterRealSessions(completedSessions), [completedSessions]);
 
   const formatWeight = (kg: number) => {
     if (unit === 'lbs') return Math.round(kg * 2.20462);
@@ -196,7 +199,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const handleExportCSV = () => {
     soundManager.playTick();
     const headers = 'Date,Routine,Duration_Minutes,Total_Volume_Kg,Sets_Count,XP_Earned\n';
-    const rows = completedSessions.map(s => 
+    const rows = realSessions.map(s => 
       `"${s.date}","${s.routineTitle}",${Math.round(s.durationSeconds / 60)},${s.totalVolumeKg},${s.setsCount},${s.xpEarned}`
     ).join('\n');
     const blob = new Blob([headers + rows], { type: 'text/csv' });
@@ -541,12 +544,12 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </h3>
           </div>
           <span className="text-xs font-mono-numbers text-slate-400">
-            {completedSessions.length} {language === 'pt' ? 'Sessões Registradas' : 'Total Sessions Logged'}
+            {realSessions.length} {language === 'pt' ? 'Sessões Registradas' : 'Total Sessions Logged'}
           </span>
         </div>
 
         <div className="space-y-3">
-          {completedSessions.map((sessionItem) => (
+          {realSessions.map((sessionItem) => (
             <div
               key={sessionItem.id}
               className="bg-[#1E293B] border border-slate-800/80 hover:border-slate-700 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"

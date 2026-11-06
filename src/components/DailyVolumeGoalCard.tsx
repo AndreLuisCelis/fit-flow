@@ -18,6 +18,7 @@ import {
 import confetti from 'canvas-confetti';
 import { CompletedSessionSummary, ActiveWorkoutSession } from '../types/workout';
 import { soundManager } from '../utils/audio';
+import { filterRealSessions } from '../services/workoutHistory';
 
 interface DailyVolumeGoalCardProps {
   language: 'pt' | 'en';
@@ -69,8 +70,8 @@ export const DailyVolumeGoalCard: React.FC<DailyVolumeGoalCardProps> = ({
   // Confetti trigger flag to avoid re-triggering constantly
   const [hasCelebrated, setHasCelebrated] = useState<boolean>(false);
 
-  // Calculate real volume from completed workouts today
-  const realTodaySessionsVol = completedSessions
+  // Calculate real volume from completed workouts today (excluding demo workouts)
+  const realTodaySessionsVol = filterRealSessions(completedSessions)
     .filter(s => s.date === todayStr)
     .reduce((sum, s) => sum + (s.totalVolumeKg || 0), 0);
 
