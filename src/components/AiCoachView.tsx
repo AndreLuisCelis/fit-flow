@@ -29,7 +29,7 @@ import { EXERCISE_DATABASE } from '../data/presetRoutines';
 import { fitFlowDB } from '../db/indexedDb';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
-import { validateGeneratedWorkout } from '../utils/workoutPersonalization';
+import { GeneratedWorkout, validateGeneratedWorkout } from '../utils/workoutPersonalization';
 import { getMuscleLabel } from '../utils/localization';
 import { extractRealFrequentExercises, filterRealSessions } from '../services/workoutHistory';
 
@@ -80,7 +80,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   // Generation state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [statusText, setStatusText] = useState<string>('');
-  const [generatedRoutine, setGeneratedRoutine] = useState<any | null>(null);
+  const [generatedRoutine, setGeneratedRoutine] = useState<GeneratedWorkout | null>(null);
   const [generatedRoutineId, setGeneratedRoutineId] = useState('');
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -224,12 +224,12 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
   const buildRoutineModel = (): WorkoutRoutine => {
     if (!generatedRoutine) throw new Error('No routine generated');
 
-    const exercisesInRoutine: ExerciseInRoutine[] = generatedRoutine.exercises.map((ex: any, idx: number) => {
+    const exercisesInRoutine: ExerciseInRoutine[] = generatedRoutine.exercises.map((ex, idx) => {
       const exerciseId = `${generatedRoutineId}-ex-${idx}`;
       const generatedSets: SetEntry[] = [];
-      const setsCount = ex.setsCount || 3;
-      const defaultWeight = typeof ex.defaultWeight === 'number' ? ex.defaultWeight : 50;
-      const defaultReps = ex.defaultReps || 10;
+      const setsCount = ex.setsCount;
+      const defaultWeight = ex.defaultWeight;
+      const defaultReps = ex.defaultReps;
 
       const exercise: Exercise = {
         id: exerciseId,
@@ -241,7 +241,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
         defaultSets: setsCount,
         defaultReps,
         defaultWeight,
-        restSeconds: ex.targetRestSeconds || 75,
+        restSeconds: ex.targetRestSeconds,
         notes: ex.notes,
         notesPt: language === 'pt' ? ex.notes : ex.notesPt,
         tempo: ex.tempo,
@@ -262,7 +262,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       return {
         exerciseId,
         sets: generatedSets,
-        targetRestSeconds: ex.targetRestSeconds || 75,
+        targetRestSeconds: ex.targetRestSeconds,
         customNotes: ex.notes || ex.tempo ? `Cadência: ${ex.tempo}. ${ex.notes || ''}` : undefined,
       };
     });
@@ -271,12 +271,12 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       id: generatedRoutineId,
       title: generatedRoutine.title,
       titlePt: generatedRoutine.title,
-      category: generatedRoutine.category || focus,
-      targetDurationMinutes: generatedRoutine.targetDurationMinutes || duration,
-      difficulty: generatedRoutine.difficulty || 'Advanced',
-      targetMuscles: generatedRoutine.targetMuscles || ['chest'],
+      category: generatedRoutine.category,
+      targetDurationMinutes: generatedRoutine.targetDurationMinutes,
+      difficulty: generatedRoutine.difficulty,
+      targetMuscles: generatedRoutine.targetMuscles,
       exercises: exercisesInRoutine,
-      xpReward: generatedRoutine.xpReward || 380,
+      xpReward: generatedRoutine.xpReward,
       createdAt: new Date().toISOString(),
     };
   };
@@ -587,10 +587,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                   {language === 'pt' ? 'ROTINA SINTETIZADA' : 'SYNTHESIZED PROTOCOL'}
                 </span>
                 <span className="text-xs font-mono-numbers text-[#38BDF8] font-bold">
-                  {generatedRoutine.category || focus} • {generatedRoutine.targetDurationMinutes || duration} min
+                  {generatedRoutine.category} • {generatedRoutine.targetDurationMinutes} min
                 </span>
                 <span className="text-xs font-mono-numbers text-[#CCFF00] font-bold">
-                  +{generatedRoutine.xpReward || 380} XP
+                  +{generatedRoutine.xpReward} XP
                 </span>
               </div>
               <h3 className="text-2xl sm:text-3xl font-black font-display text-white">
@@ -649,7 +649,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             </h4>
 
             <div className="space-y-2.5">
-              {generatedRoutine.exercises?.map((ex: any, idx: number) => (
+              {generatedRoutine.exercises.map((ex, idx) => (
                 <div
                   key={idx}
                   className="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"

@@ -17,13 +17,18 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import { WorkoutRoutine, MuscleGroup, Exercise, SetEntry } from '../types/workout';
+import { WorkoutRoutine, Exercise } from '../types/workout';
 import { UserProfile } from '../types/profile';
 import { PRESET_ROUTINES, EXERCISE_DATABASE } from '../data/presetRoutines';
 import { fitFlowDB } from '../db/indexedDb';
 import { soundManager } from '../utils/audio';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { isEquipmentAvailable, rankCompatibleRoutines, validateGeneratedWorkout } from '../utils/workoutPersonalization';
+import {
+  isEquipmentAvailable,
+  rankCompatibleRoutines,
+  validateAndAdaptGeneratedWorkout,
+  validateGeneratedWorkout,
+} from '../utils/workoutPersonalization';
 import { getMuscleLabel } from '../utils/localization';
 
 interface RoutinesHubProps {
@@ -148,13 +153,13 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
             const generatedExercises: Exercise[] = [];
             const newRoutine: WorkoutRoutine = {
               id: `gemini-routine-${Date.now()}`,
-              title: r.title || 'Gemini Hyper-Overload',
-              titlePt: r.title || 'Gemini Hiper-Sobrecarga',
-              category: r.category || 'Push',
-              targetDurationMinutes: r.targetDurationMinutes || aiDuration,
-              difficulty: r.difficulty || 'Advanced',
-              targetMuscles: r.targetMuscles || ['chest', 'shoulders'],
-              xpReward: r.xpReward || 380,
+              title: r.title,
+              titlePt: r.title,
+              category: r.category,
+              targetDurationMinutes: r.targetDurationMinutes,
+              difficulty: r.difficulty,
+              targetMuscles: r.targetMuscles,
+              xpReward: r.xpReward,
               createdAt: new Date().toISOString(),
               exercises: (r.exercises || []).map((ex: any, idx: number) => {
                 const exId = `ex-${Date.now()}-${idx}`;
@@ -163,13 +168,13 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                     id: exId,
                     name: ex.name,
                     namePt: ex.name,
-                    primaryMuscle: ex.primaryMuscle || 'chest',
-                    category: ex.category || 'barbell',
+                    primaryMuscle: ex.primaryMuscle,
+                    category: ex.category,
                     equipmentRequired: ex.equipmentRequired,
-                    defaultSets: ex.setsCount || 4,
-                    defaultReps: ex.defaultReps || 10,
-                    defaultWeight: ex.defaultWeight || 50,
-                    restSeconds: ex.targetRestSeconds || 75,
+                    defaultSets: ex.setsCount,
+                    defaultReps: ex.defaultReps,
+                    defaultWeight: ex.defaultWeight,
+                    restSeconds: ex.targetRestSeconds,
                     notes: ex.notes,
                     notesPt: language === 'pt' ? ex.notes : ex.notesPt,
                     tempo: ex.tempo,
@@ -179,13 +184,12 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
 
                 return {
                   exerciseId: exId,
-                  targetRestSeconds: ex.targetRestSeconds || 75,
-                  sets: Array.from({ length: ex.setsCount || 4 }, (_, sIdx) => ({
+                  targetRestSeconds: ex.targetRestSeconds,
+                  sets: Array.from({ length: ex.setsCount }, (_, sIdx) => ({
                     id: `set-${exId}-${sIdx + 1}`,
                     setNumber: sIdx + 1,
-                    weight: ex.defaultWeight || 50,
-                    reps: ex.defaultReps || 10,
-                    previousBest: { weight: (ex.defaultWeight || 50) * 0.95, reps: ex.defaultReps || 10 },
+                    weight: ex.defaultWeight,
+                    reps: ex.defaultReps,
                     rpe: 8,
                     isCompleted: false,
                   })),
@@ -217,32 +221,27 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
     try {
       await new Promise(resolve => setTimeout(resolve, 700));
       let chosenExercises: string[] = ['bench_press', 'incline_db_press', 'lateral_raise', 'tricep_pushdown'];
-      let targetMuscles: MuscleGroup[] = ['chest', 'shoulders', 'triceps'];
       let routineName = 'FitFlow Offline Hyper-Overload: Push';
       let routineNamePt = 'FitFlow Hiper-Sobrecarga Offline: Push';
       let category: WorkoutRoutine['category'] = 'Push';
 
       if (aiFocus.includes('Full')) {
         chosenExercises = ['hanging_leg_raise', 'barbell_squat', 'bench_press', 'barbell_row'];
-        targetMuscles = ['core', 'quads', 'chest', 'back'];
         routineName = 'FitFlow Offline Full Body';
         routineNamePt = 'FitFlow Corpo Todo Offline';
         category = 'Full Body';
       } else if (aiFocus.includes('Pull') || aiFocus.includes('Back') || aiFocus.includes('Costas')) {
         chosenExercises = ['barbell_deadlift', 'lat_pulldown', 'barbell_row', 'barbell_curl'];
-        targetMuscles = ['back', 'biceps', 'hamstrings'];
         routineName = 'FitFlow Offline Posterior Chain';
         routineNamePt = 'FitFlow Cadeia Posterior Offline';
       } else if (aiFocus.includes('Legs') || aiFocus.includes('Lower') || aiFocus.includes('Pernas')) {
         chosenExercises = ['barbell_squat', 'romanian_deadlift', 'leg_press', 'standing_calf'];
-        targetMuscles = ['quads', 'hamstrings', 'calves', 'glutes'];
         routineName = 'FitFlow Offline Lower Quad Force';
         routineNamePt = 'FitFlow Força de Pernas Offline';
         category = 'Legs';
       } else {
         // Push & Shoulders (default case - no other condition matched)
         chosenExercises = ['bench_press', 'incline_db_press', 'lateral_raise', 'tricep_pushdown'];
-        targetMuscles = ['chest', 'shoulders', 'triceps'];
         routineName = 'FitFlow Offline Hyper-Overload: Push';
         routineNamePt = 'FitFlow Hiper-Sobrecarga Offline: Push';
         category = 'Push';
@@ -275,29 +274,76 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
         return;
       }
 
-      const newRoutine: WorkoutRoutine = {
-        id: `offline-routine-${Date.now()}`,
+      const fallbackCandidate = {
         title: routineName,
-        titlePt: routineNamePt,
         category,
         targetDurationMinutes: aiDuration,
-        difficulty: profile.experience === 'beginner' ? 'Beginner' : profile.experience === 'intermediate' ? 'Intermediate' : 'Advanced',
-        targetMuscles: targetMuscles.filter(muscle => compatibleExercises.some(id => {
-          const exercise = exerciseDatabase[id];
-          return exercise?.primaryMuscle === muscle || exercise?.secondaryMuscles?.includes(muscle);
-        })),
+        difficulty: profile.experience === 'beginner' ? 'Beginner' as const : profile.experience === 'intermediate' ? 'Intermediate' as const : 'Advanced' as const,
+        targetMuscles: [...new Set(compatibleExercises.map((id) => exerciseDatabase[id].primaryMuscle))],
         xpReward: 380,
-        exercises: compatibleExercises.map((exId) => {
-          const baseEx = exerciseDatabase[exId];
+        exercises: compatibleExercises.map((id) => {
+          const exercise = exerciseDatabase[id];
+          return {
+            name: language === 'pt' ? exercise.namePt : exercise.name,
+            primaryMuscle: exercise.primaryMuscle,
+            category: exercise.category,
+            ...(exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {}),
+            defaultWeight: exercise.defaultWeight,
+            defaultReps: exercise.defaultReps,
+            setsCount: profile.experience === 'beginner' ? Math.min(3, exercise.defaultSets) : exercise.defaultSets,
+            targetRestSeconds: exercise.restSeconds,
+            ...(exercise.tempo ? { tempo: exercise.tempo } : {}),
+            ...(exercise.notes ? { notes: exercise.notes } : {}),
+            ...(exercise.notesPt ? { notesPt: exercise.notesPt } : {}),
+          };
+        }),
+      };
+      const validatedFallback = validateAndAdaptGeneratedWorkout(fallbackCandidate, profile.equipment, profile.experience);
+      if (!validatedFallback) {
+        setGenerationError(language === 'pt'
+          ? 'Não foi possível validar uma rotina compatível com os equipamentos selecionados.'
+          : 'Could not validate a workout compatible with the selected equipment.');
+        return;
+      }
+
+      const generatedExercises: Exercise[] = [];
+      const newRoutine: WorkoutRoutine = {
+        id: `offline-routine-${Date.now()}`,
+        title: validatedFallback.title,
+        titlePt: routineNamePt,
+        category: validatedFallback.category,
+        targetDurationMinutes: validatedFallback.targetDurationMinutes,
+        difficulty: validatedFallback.difficulty,
+        targetMuscles: validatedFallback.targetMuscles,
+        xpReward: validatedFallback.xpReward,
+        exercises: validatedFallback.exercises.map((ex, index) => {
+          const exId = `offline-ex-${Date.now()}-${index}`;
+          const baseEx = exerciseDatabase[compatibleExercises[index]];
+          const generatedExercise: Exercise = {
+            ...baseEx,
+            id: exId,
+            name: ex.name,
+            namePt: ex.name,
+            primaryMuscle: ex.primaryMuscle,
+            category: ex.category,
+            equipmentRequired: ex.equipmentRequired,
+            defaultSets: ex.setsCount,
+            defaultReps: ex.defaultReps,
+            defaultWeight: ex.defaultWeight,
+            restSeconds: ex.targetRestSeconds,
+            tempo: ex.tempo,
+            notes: ex.notes,
+            notesPt: ex.notesPt,
+          };
+          generatedExercises.push(generatedExercise);
           return {
             exerciseId: exId,
-            targetRestSeconds: 75,
-            sets: Array.from({ length: profile.experience === 'beginner' ? 3 : 4 }, (_, i) => ({
+            targetRestSeconds: ex.targetRestSeconds,
+            sets: Array.from({ length: ex.setsCount }, (_, i) => ({
               id: `offline-set-${exId}-${i + 1}`,
               setNumber: i + 1,
-              weight: baseEx ? baseEx.defaultWeight : 60,
-              reps: baseEx ? baseEx.defaultReps : 10,
-              previousBest: { weight: (baseEx?.defaultWeight || 60) * 0.95, reps: 8 },
+              weight: ex.defaultWeight,
+              reps: ex.defaultReps,
               rpe: 8,
               isCompleted: false,
             })),
@@ -306,7 +352,12 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
       };
 
       // Save to IndexedDB!
+      await Promise.all(generatedExercises.map(exercise => fitFlowDB.saveExercise(exercise)));
       await fitFlowDB.saveRoutine(newRoutine);
+      setExerciseDatabase(current => ({
+        ...current,
+        ...Object.fromEntries(generatedExercises.map(exercise => [exercise.id, exercise])),
+      }));
       setRoutinesList(prev => [newRoutine, ...prev]);
       setGeneratedRoutine(newRoutine);
       setIsAiOnlineSource(false);

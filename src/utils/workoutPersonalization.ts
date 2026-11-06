@@ -1,5 +1,13 @@
 import { Exercise, WorkoutRoutine } from '../types/workout';
-import { ProfileGoal, TRAINING_EQUIPMENT, TrainingEquipment, UserProfile } from '../types/profile';
+import {
+  EXPERIENCE_LEVELS,
+  PROFILE_GOALS,
+  ExperienceLevel,
+  ProfileGoal,
+  TRAINING_EQUIPMENT,
+  TrainingEquipment,
+  UserProfile,
+} from '../types/profile';
 
 const equipmentForCategory: Record<Exercise['category'], TrainingEquipment> = {
   barbell: 'barbell',
@@ -69,52 +77,151 @@ export interface GeneratedWorkout {
   exercises: GeneratedWorkoutExercise[];
 }
 
+export interface ValidatedWorkoutRequest {
+  focus: string;
+  durationMinutes: number;
+  language: 'pt' | 'en';
+  equipment: TrainingEquipment[];
+  profileEquipment: TrainingEquipment[];
+  profileGoals: ProfileGoal[];
+  experienceLevel: UserProfile['experience'];
+  fatigueLevel: 'fresh' | 'normal' | 'fatigued';
+  targetGoal: 'hypertrophy' | 'strength' | 'endurance' | 'deload';
+  frequentExercises: string[];
+}
+
 const muscleGroups: Exercise['primaryMuscle'][] = [
   'chest', 'back', 'shoulders', 'biceps', 'triceps', 'quads', 'hamstrings', 'calves', 'core', 'glutes',
 ];
 const routineCategories: WorkoutRoutine['category'][] = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Cardio & Core'];
 const routineDifficulties: WorkoutRoutine['difficulty'][] = ['Beginner', 'Intermediate', 'Advanced', 'Hardcore'];
+const maximumTargetMuscles = 6;
+const maximumExercises = 10;
+const exerciseCategories: Exercise['category'][] = ['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight', 'bands'];
+const requestFatigueLevels = ['fresh', 'normal', 'fatigued'] as const;
+const requestGoals = ['hypertrophy', 'strength', 'endurance', 'deload'] as const;
+const allowedRoutineFields = ['title', 'category', 'targetDurationMinutes', 'difficulty', 'targetMuscles', 'xpReward', 'coachingNotes', 'exercises'];
+const allowedExerciseFields = ['name', 'primaryMuscle', 'category', 'equipmentRequired', 'defaultWeight', 'defaultReps', 'setsCount', 'targetRestSeconds', 'tempo', 'notes', 'notesPt'];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOnlyFields(value: Record<string, unknown>, allowedFields: string[]): boolean {
+  return Object.keys(value).every((field) => allowedFields.includes(field));
+}
+
+function isEquipmentList(value: unknown): value is TrainingEquipment[] {
+  return Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === 'string' && TRAINING_EQUIPMENT.includes(item as TrainingEquipment));
+}
+
+export function validateWorkoutRequest(value: unknown): ValidatedWorkoutRequest | null {
+  if (!isRecord(value)) return null;
+  const { focus, durationMinutes } = value;
+  if (
+    typeof focus !== 'string' || focus.trim().length === 0 || focus.length > 100 ||
+    typeof durationMinutes !== 'number' || !Number.isInteger(durationMinutes) || durationMinutes < 10 || durationMinutes > 240
+  ) return null;
+
+  if (!isEquipmentList(value.equipment)) return null;
+  const profileEquipment = value.profileEquipment === undefined ? value.equipment : value.profileEquipment;
+  if (!isEquipmentList(profileEquipment)) return null;
+  const equipment = [...new Set(value.equipment)];
+  const availableProfileEquipment = [...new Set(profileEquipment)];
+  if (!equipment.every((item) => availableProfileEquipment.includes(item))) return null;
+
+  let profileGoals: unknown = value.profileGoals;
+  if (profileGoals === undefined && value.profileGoal !== undefined) {
+    profileGoals = Array.isArray(value.profileGoal) ? value.profileGoal : [value.profileGoal];
+  }
+  if (profileGoals === undefined) profileGoals = ['muscle_gain'];
+  if (
+    !Array.isArray(profileGoals) || profileGoals.length === 0 ||
+    !profileGoals.every((goal) => typeof goal === 'string' && PROFILE_GOALS.includes(goal as ProfileGoal))
+  ) return null;
+
+  const experienceLevel = value.experienceLevel === undefined ? 'intermediate' : value.experienceLevel;
+  if (!EXPERIENCE_LEVELS.includes(experienceLevel as ExperienceLevel)) return null;
+  const language = value.language === undefined ? 'pt' : value.language;
+  if (language !== 'pt' && language !== 'en') return null;
+
+  const fatigueInput = value.fatigueLevel === undefined ? 'normal' : value.fatigueLevel;
+  if (typeof fatigueInput !== 'string') return null;
+  const fatigueLevel = fatigueInput.toLowerCase();
+  if (!requestFatigueLevels.includes(fatigueLevel as typeof requestFatigueLevels[number])) return null;
+
+  const targetGoal = value.targetGoal === undefined ? 'hypertrophy' : value.targetGoal;
+  if (!requestGoals.includes(targetGoal as typeof requestGoals[number])) return null;
+
+  const frequentExercises = value.frequentExercises === undefined ? [] : value.frequentExercises;
+  if (
+    !Array.isArray(frequentExercises) || frequentExercises.length > 8 ||
+    !frequentExercises.every((item) => typeof item === 'string' && item.trim().length > 0 && item.length <= 100)
+  ) return null;
+
+  return {
+    focus: focus.trim(),
+    durationMinutes,
+    language,
+    equipment,
+    profileEquipment: availableProfileEquipment,
+    profileGoals: [...new Set(profileGoals as ProfileGoal[])],
+    experienceLevel: experienceLevel as ExperienceLevel,
+    fatigueLevel: fatigueLevel as ValidatedWorkoutRequest['fatigueLevel'],
+    targetGoal: targetGoal as ValidatedWorkoutRequest['targetGoal'],
+    frequentExercises: frequentExercises.map((item: string) => item.trim()),
+  };
+}
 
 export function validateGeneratedWorkout(
   value: unknown,
   availableEquipment: TrainingEquipment[],
 ): GeneratedWorkout | null {
-  if (typeof value !== 'object' || value === null) return null;
-  const candidate = value as Record<string, unknown>;
+  if (!isRecord(value) || !hasOnlyFields(value, allowedRoutineFields) || !isEquipmentList(availableEquipment)) return null;
+  const candidate = value;
   if (
     typeof candidate.title !== 'string' || candidate.title.trim().length === 0 ||
+    candidate.title.length > 100 ||
     !routineCategories.includes(candidate.category as WorkoutRoutine['category']) ||
     !routineDifficulties.includes(candidate.difficulty as WorkoutRoutine['difficulty']) ||
     !Array.isArray(candidate.targetMuscles) ||
+    candidate.targetMuscles.length === 0 || candidate.targetMuscles.length > maximumTargetMuscles ||
     !candidate.targetMuscles.every(muscle => muscleGroups.includes(muscle as Exercise['primaryMuscle'])) ||
-    !Array.isArray(candidate.exercises) || candidate.exercises.length === 0
+    new Set(candidate.targetMuscles).size !== candidate.targetMuscles.length ||
+    !Array.isArray(candidate.exercises) || candidate.exercises.length === 0 || candidate.exercises.length > maximumExercises ||
+    (candidate.coachingNotes !== undefined && (typeof candidate.coachingNotes !== 'string' || candidate.coachingNotes.length > 500))
   ) return null;
 
   const exercises: GeneratedWorkoutExercise[] = [];
   for (const rawExercise of candidate.exercises) {
-    if (typeof rawExercise !== 'object' || rawExercise === null) return null;
-    const exercise = rawExercise as Record<string, unknown>;
+    if (!isRecord(rawExercise) || !hasOnlyFields(rawExercise, allowedExerciseFields)) return null;
+    const exercise = rawExercise;
     const category = exercise.category as Exercise['category'];
     const primaryMuscle = exercise.primaryMuscle as Exercise['primaryMuscle'];
-    const equipmentRequired = Array.isArray(exercise.equipmentRequired)
-      ? exercise.equipmentRequired.filter((item): item is TrainingEquipment =>
-          typeof item === 'string' && TRAINING_EQUIPMENT.includes(item as TrainingEquipment))
-      : [];
+    const equipmentRequired = exercise.equipmentRequired === undefined ? [] : exercise.equipmentRequired;
+    const optionalTextFields = ['tempo', 'notes', 'notesPt'] as const;
     if (
-      !['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight', 'bands'].includes(category) ||
-      (exercise.equipmentRequired !== undefined && !Array.isArray(exercise.equipmentRequired)) ||
-      equipmentRequired.length !== (Array.isArray(exercise.equipmentRequired) ? exercise.equipmentRequired.length : 0) ||
+      !exerciseCategories.includes(category) ||
+      !Array.isArray(equipmentRequired) ||
+      !equipmentRequired.every((item) => typeof item === 'string' && TRAINING_EQUIPMENT.includes(item as TrainingEquipment)) ||
       !isEquipmentAvailable(category, availableEquipment, equipmentRequired) ||
       !muscleGroups.includes(primaryMuscle) ||
       typeof exercise.name !== 'string' || exercise.name.trim().length === 0 ||
+      exercise.name.length > 100 ||
       typeof exercise.defaultWeight !== 'number' || !Number.isFinite(exercise.defaultWeight) || exercise.defaultWeight < 0 || exercise.defaultWeight > 500 ||
-      typeof exercise.defaultReps !== 'number' || !Number.isInteger(exercise.defaultReps) || exercise.defaultReps < 1 || exercise.defaultReps > 100 ||
+      typeof exercise.defaultReps !== 'number' || !Number.isInteger(exercise.defaultReps) || exercise.defaultReps < 1 || exercise.defaultReps > 30 ||
       typeof exercise.setsCount !== 'number' || !Number.isInteger(exercise.setsCount) || exercise.setsCount < 1 || exercise.setsCount > 12 ||
       typeof exercise.targetRestSeconds !== 'number' || !Number.isInteger(exercise.targetRestSeconds) || exercise.targetRestSeconds < 0 || exercise.targetRestSeconds > 600
     ) return null;
+    if (optionalTextFields.some((field) =>
+      exercise[field] !== undefined &&
+      (typeof exercise[field] !== 'string' || exercise[field].length > (field === 'tempo' ? 30 : 300)),
+    )) return null;
 
     exercises.push({
-      name: exercise.name.trim().slice(0, 100),
+      name: exercise.name.trim(),
       primaryMuscle,
       category,
       defaultWeight: exercise.defaultWeight,
@@ -122,33 +229,46 @@ export function validateGeneratedWorkout(
       setsCount: exercise.setsCount,
       targetRestSeconds: exercise.targetRestSeconds,
       ...(equipmentRequired.length ? { equipmentRequired } : {}),
-      ...(typeof exercise.tempo === 'string' ? { tempo: exercise.tempo.slice(0, 30) } : {}),
-      ...(typeof exercise.notes === 'string' ? { notes: exercise.notes.slice(0, 300) } : {}),
-      ...(typeof exercise.notesPt === 'string' ? { notesPt: exercise.notesPt.slice(0, 300) } : {}),
+      ...(typeof exercise.tempo === 'string' ? { tempo: exercise.tempo } : {}),
+      ...(typeof exercise.notes === 'string' ? { notes: exercise.notes } : {}),
+      ...(typeof exercise.notesPt === 'string' ? { notesPt: exercise.notesPt } : {}),
     });
   }
 
+  const actualTargetMuscles = new Set(exercises.map((exercise) => exercise.primaryMuscle));
+  const declaredTargetMuscles = new Set(candidate.targetMuscles as Exercise['primaryMuscle'][]);
+  const totalSets = exercises.reduce((sum, exercise) => sum + exercise.setsCount, 0);
   if (
-    typeof candidate.targetDurationMinutes !== 'number' || !Number.isFinite(candidate.targetDurationMinutes) || candidate.targetDurationMinutes < 10 || candidate.targetDurationMinutes > 240 ||
-    typeof candidate.xpReward !== 'number' || !Number.isFinite(candidate.xpReward) || candidate.xpReward < 0 || candidate.xpReward > 5000
+    typeof candidate.targetDurationMinutes !== 'number' || !Number.isInteger(candidate.targetDurationMinutes) || candidate.targetDurationMinutes < 10 || candidate.targetDurationMinutes > 240 ||
+    typeof candidate.xpReward !== 'number' || !Number.isInteger(candidate.xpReward) || candidate.xpReward < 0 || candidate.xpReward > 5000 ||
+    totalSets > getWorkoutSetBudget(candidate.targetDurationMinutes) ||
+    actualTargetMuscles.size !== declaredTargetMuscles.size ||
+    [...actualTargetMuscles].some((muscle) => !declaredTargetMuscles.has(muscle))
   ) return null;
 
   return {
-    title: candidate.title.trim().slice(0, 100),
+    title: candidate.title.trim(),
     category: candidate.category as WorkoutRoutine['category'],
     targetDurationMinutes: candidate.targetDurationMinutes,
     difficulty: candidate.difficulty as WorkoutRoutine['difficulty'],
     targetMuscles: candidate.targetMuscles as WorkoutRoutine['targetMuscles'],
     xpReward: candidate.xpReward,
-    ...(typeof candidate.coachingNotes === 'string' ? { coachingNotes: candidate.coachingNotes.slice(0, 500) } : {}),
+    ...(typeof candidate.coachingNotes === 'string' ? { coachingNotes: candidate.coachingNotes } : {}),
     exercises,
   };
+}
+
+export function getWorkoutSetBudget(durationMinutes: number): number {
+  return Math.floor(durationMinutes * 2 / 3);
 }
 
 export function adaptGeneratedWorkout(
   routine: GeneratedWorkout,
   experience: UserProfile['experience'],
 ): GeneratedWorkout {
+  if (!EXPERIENCE_LEVELS.includes(experience)) {
+    throw new Error('Invalid experience level');
+  }
   const maximumDifficulty = experience === 'beginner'
     ? 'Beginner'
     : experience === 'intermediate'
@@ -158,15 +278,29 @@ export function adaptGeneratedWorkout(
   const difficulty = difficultyRank[routine.difficulty] > maximumRank
     ? maximumDifficulty
     : routine.difficulty;
+  const maximumSetsPerExercise = experience === 'beginner' ? 3 : experience === 'intermediate' ? 5 : 8;
+  let remainingSets = getWorkoutSetBudget(routine.targetDurationMinutes);
 
   return {
     ...routine,
     difficulty,
-    exercises: routine.exercises.map(exercise => ({
-      ...exercise,
-      setsCount: experience === 'beginner' ? Math.min(exercise.setsCount, 3) : exercise.setsCount,
-    })),
+    exercises: routine.exercises.map((exercise) => {
+      const setsCount = Math.min(exercise.setsCount, maximumSetsPerExercise, remainingSets);
+      remainingSets -= setsCount;
+      return { ...exercise, setsCount };
+    }),
   };
+}
+
+export function validateAndAdaptGeneratedWorkout(
+  value: unknown,
+  availableEquipment: TrainingEquipment[],
+  experience: UserProfile['experience'],
+): GeneratedWorkout | null {
+  const validated = validateGeneratedWorkout(value, availableEquipment);
+  if (!validated) return null;
+  const adapted = adaptGeneratedWorkout(validated, experience);
+  return validateGeneratedWorkout(adapted, availableEquipment);
 }
 
 export function isEquipmentAvailable(

@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Exercise, WorkoutRoutine } from '../types/workout';
 import { UserProfile } from '../types/profile';
-import { adaptGeneratedWorkout, isRoutineCompatible, rankCompatibleRoutines, validateGeneratedWorkout } from './workoutPersonalization';
+import {
+  adaptGeneratedWorkout,
+  isRoutineCompatible,
+  rankCompatibleRoutines,
+  validateAndAdaptGeneratedWorkout,
+  validateGeneratedWorkout,
+  validateWorkoutRequest,
+} from './workoutPersonalization';
 
 const database: Record<string, Exercise> = {
   bodyweight_squat: {
@@ -35,6 +42,40 @@ function routine(id: string, category: WorkoutRoutine['category'], difficulty: W
 
 const bodyweightBeginner: UserProfile = {
   name: 'Test User', goals: ['fitness'], experience: 'beginner', equipment: ['bodyweight'],
+};
+
+function generatedWorkout(overrides: Record<string, unknown> = {}) {
+  return {
+    title: 'Bodyweight session',
+    category: 'Full Body',
+    targetDurationMinutes: 30,
+    difficulty: 'Beginner',
+    targetMuscles: ['quads'],
+    xpReward: 100,
+    coachingNotes: 'Keep controlled form.',
+    exercises: [{
+      name: 'Bodyweight squat',
+      primaryMuscle: 'quads',
+      category: 'bodyweight',
+      defaultWeight: 0,
+      defaultReps: 10,
+      setsCount: 3,
+      targetRestSeconds: 60,
+    }],
+    ...overrides,
+  };
+}
+
+const validWorkoutRequest = {
+  focus: 'Full Body',
+  durationMinutes: 45,
+  equipment: ['bodyweight'],
+  profileEquipment: ['bodyweight', 'pull_up_bar'],
+  profileGoals: ['fitness'],
+  experienceLevel: 'beginner',
+  fatigueLevel: 'normal',
+  targetGoal: 'endurance',
+  language: 'pt',
 };
 
 test('routines never require equipment missing from the profile', () => {
@@ -155,4 +196,206 @@ test('advanced users may receive advanced routines without being downgraded', ()
   }, ['barbell']);
   assert.ok(generated);
   if (generated) assert.equal(adaptGeneratedWorkout(generated, 'advanced').difficulty, 'Advanced');
+});
+
+test('workout request validation accepts current client payloads and legacy profileGoal', () => {
+  assert.deepEqual(validateWorkoutRequest(validWorkoutRequest), {
+    ...validWorkoutRequest,
+    frequentExercises: [],
+  });
+  assert.deepEqual(validateWorkoutRequest({
+    focus: 'Push',
+    durationMinutes: 30,
+    equipment: ['barbell'],
+    profileGoal: 'muscle_gain',
+  })?.profileGoals, ['muscle_gain']);
+});
+
+test('workout request validation rejects missing required fields, malformed objects, and wrong types', () => {
+  assert.equal(validateWorkoutRequest(null), null);
+  assert.equal(validateWorkoutRequest([]), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, focus: undefined }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, durationMinutes: '45' }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, equipment: undefined }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, profileEquipment: 'bodyweight' }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, frequentExercises: 'squat' }), null);
+});
+
+test('workout request validation rejects invalid enums and equipment not in profile', () => {
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, experienceLevel: 'expert' }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, profileGoals: ['unknown'] }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, targetGoal: 'bulk' }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, fatigueLevel: 'exhausted' }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, language: 'es' }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, equipment: ['unlisted'] }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, equipment: ['barbell'] }), null);
+});
+
+test('workout request validation enforces integer duration boundaries and optional-list limits', () => {
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, durationMinutes: 9 }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, durationMinutes: 241 }), null);
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, durationMinutes: 30.5 }), null);
+  assert.ok(validateWorkoutRequest({ ...validWorkoutRequest, durationMinutes: 10 }));
+  assert.ok(validateWorkoutRequest({ ...validWorkoutRequest, durationMinutes: 240 }));
+  assert.equal(validateWorkoutRequest({ ...validWorkoutRequest, frequentExercises: Array(9).fill('Squat') }), null);
+});
+
+test('generated workout validation accepts numeric boundaries and fractional kilogram weights', () => {
+  const atMinimums = generatedWorkout({
+    targetDurationMinutes: 10,
+    xpReward: 0,
+    exercises: [{
+      name: 'Weighted squat',
+      primaryMuscle: 'quads',
+      category: 'bodyweight',
+      defaultWeight: 0,
+      defaultReps: 1,
+      setsCount: 1,
+      targetRestSeconds: 0,
+    }],
+  });
+  assert.ok(validateGeneratedWorkout(atMinimums, ['bodyweight']));
+
+  const atMaximums = generatedWorkout({
+    targetDurationMinutes: 240,
+    xpReward: 5000,
+    exercises: [{
+      name: 'Loaded squat',
+      primaryMuscle: 'quads',
+      category: 'bodyweight',
+      defaultWeight: 500,
+      defaultReps: 30,
+      setsCount: 12,
+      targetRestSeconds: 600,
+    }],
+  });
+  assert.ok(validateGeneratedWorkout(atMaximums, ['bodyweight']));
+  assert.ok(validateGeneratedWorkout(generatedWorkout({
+    exercises: [{ ...generatedWorkout().exercises[0], defaultWeight: 22.5 }],
+  }), ['bodyweight']));
+});
+
+test('generated workout validation rejects extra fields and incomplete structures', () => {
+  assert.equal(validateGeneratedWorkout(generatedWorkout({ unexpected: true }), ['bodyweight']), null);
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    exercises: [{ ...generatedWorkout().exercises[0], debug: true }],
+  }), ['bodyweight']), null);
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    exercises: [{ name: 'Squat' }],
+  }), ['bodyweight']), null);
+});
+
+test('generated workout validation rejects invalid enums and equipment values', () => {
+  assert.equal(validateGeneratedWorkout(generatedWorkout({ category: 'Unknown' }), ['bodyweight']), null);
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    exercises: [{ ...generatedWorkout().exercises[0], primaryMuscle: 'unknown' }],
+  }), ['bodyweight']), null);
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    exercises: [{ ...generatedWorkout().exercises[0], equipmentRequired: ['unknown'] }],
+  }), ['bodyweight']), null);
+});
+
+test('generated workout validation rejects decimals for integer fields and invalid boundaries', () => {
+  for (const [field, value] of [
+    ['targetDurationMinutes', 30.5],
+    ['xpReward', 100.5],
+  ] as const) {
+    assert.equal(validateGeneratedWorkout(generatedWorkout({ [field]: value }), ['bodyweight']), null);
+  }
+  for (const [field, value] of [
+    ['defaultReps', 10.5],
+    ['defaultReps', 31],
+    ['setsCount', 0],
+    ['setsCount', 12.5],
+    ['targetRestSeconds', 601],
+  ] as const) {
+    assert.equal(validateGeneratedWorkout(generatedWorkout({
+      exercises: [{ ...generatedWorkout().exercises[0], [field]: value }],
+    }), ['bodyweight']), null);
+  }
+});
+
+test('generated workout validation enforces exercise and muscle-count limits', () => {
+  const exercise = generatedWorkout().exercises[0];
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    exercises: Array(11).fill(exercise),
+  }), ['bodyweight']), null);
+
+  const muscles = ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'quads', 'glutes'];
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    targetMuscles: muscles,
+    exercises: muscles.map((primaryMuscle) => ({ ...exercise, primaryMuscle })),
+  }), ['bodyweight']), null);
+
+  const maximumMuscles = muscles.slice(0, 6);
+  assert.ok(validateGeneratedWorkout(generatedWorkout({
+    targetMuscles: maximumMuscles,
+    exercises: maximumMuscles.map((primaryMuscle) => ({ ...exercise, primaryMuscle })),
+  }), ['bodyweight']));
+  assert.ok(validateGeneratedWorkout(generatedWorkout({
+    exercises: Array.from({ length: 10 }, (_, index) => ({ ...exercise, name: `Squat ${index}`, setsCount: 1 })),
+  }), ['bodyweight']));
+});
+
+test('generated workout validation rejects values beyond numeric upper and lower bounds', () => {
+  assert.equal(validateGeneratedWorkout(generatedWorkout({ targetDurationMinutes: 9 }), ['bodyweight']), null);
+  assert.equal(validateGeneratedWorkout(generatedWorkout({ targetDurationMinutes: 241 }), ['bodyweight']), null);
+  assert.equal(validateGeneratedWorkout(generatedWorkout({ xpReward: 5001 }), ['bodyweight']), null);
+  for (const [field, value] of [
+    ['defaultWeight', 501],
+    ['defaultWeight', -0.1],
+    ['defaultReps', 0],
+    ['setsCount', 13],
+    ['targetRestSeconds', -1],
+  ] as const) {
+    assert.equal(validateGeneratedWorkout(generatedWorkout({
+      exercises: [{ ...generatedWorkout().exercises[0], [field]: value }],
+    }), ['bodyweight']), null);
+  }
+});
+
+test('generated workout validation rejects sets that cannot fit the requested duration', () => {
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    targetDurationMinutes: 10,
+    exercises: [{ ...generatedWorkout().exercises[0], setsCount: 7 }],
+  }), ['bodyweight']), null);
+});
+
+test('generated workout validation requires declared target muscles to match exercise muscles', () => {
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    targetMuscles: ['chest'],
+  }), ['bodyweight']), null);
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    targetMuscles: ['quads', 'quads'],
+  }), ['bodyweight']), null);
+});
+
+test('level adaptation is deterministic and caps difficulty and training volume', () => {
+  const validated = validateGeneratedWorkout(generatedWorkout({
+    difficulty: 'Hardcore',
+    targetDurationMinutes: 45,
+    exercises: Array.from({ length: 4 }, (_, index) => ({
+      ...generatedWorkout().exercises[0],
+      name: `Squat variation ${index}`,
+      setsCount: 6,
+    })),
+  }), ['bodyweight']);
+  assert.ok(validated);
+  if (!validated) return;
+
+  const firstAdaptation = adaptGeneratedWorkout(validated, 'beginner');
+  const secondAdaptation = adaptGeneratedWorkout(validated, 'beginner');
+  assert.deepEqual(firstAdaptation, secondAdaptation);
+  assert.equal(firstAdaptation.difficulty, 'Beginner');
+  assert.deepEqual(firstAdaptation.exercises.map((exercise) => exercise.setsCount), [3, 3, 3, 3]);
+  assert.ok(firstAdaptation.exercises.reduce((sum, exercise) => sum + exercise.setsCount, 0) <= 30);
+  assert.equal(adaptGeneratedWorkout(validated, 'intermediate').difficulty, 'Intermediate');
+  assert.equal(adaptGeneratedWorkout(validated, 'advanced').difficulty, 'Hardcore');
+});
+
+test('fallback validation returns null instead of passing through an invalid routine', () => {
+  assert.equal(validateAndAdaptGeneratedWorkout({
+    ...generatedWorkout(),
+    exercises: [{ ...generatedWorkout().exercises[0], category: 'invalid' }],
+  }, ['bodyweight'], 'beginner'), null);
 });
