@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Calendar, Dumbbell, Trophy } from 'lucide-react';
-import { RecordedExercisePeak } from '../services/workoutHistory';
+import { PersonalRecordAchievement } from '../types/workout';
 
 interface PersonalRecordsGalleryProps {
-  records: RecordedExercisePeak[];
+  records: PersonalRecordAchievement[];
   onSelectExercise?: (exerciseId: string) => void;
   language: 'pt' | 'en';
   unit: 'kg' | 'lbs';
@@ -41,15 +41,15 @@ export const PersonalRecordsGallery: React.FC<PersonalRecordsGalleryProps> = ({
           <div className="flex items-center gap-2 mb-1">
             <Trophy className="w-4 h-4 text-[#CCFF00]" />
             <span className="text-xs uppercase font-mono-numbers tracking-widest text-[#CCFF00] font-bold">
-              {language === 'pt' ? 'CARGAS MÁXIMAS REGISTRADAS' : 'RECORDED PEAK LOADS'}
+              {language === 'pt' ? 'RECORDES PESSOAIS CONFIRMADOS' : 'CONFIRMED PERSONAL RECORDS'}
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold font-display text-white">
-            {language === 'pt' ? 'Melhores séries por exercício' : 'Best recorded set by exercise'}
+            {language === 'pt' ? 'Conquistas por exercício' : 'Achievements by exercise'}
           </h2>
         </div>
         <span className="px-3 py-1.5 rounded-full bg-[#1E293B] border border-slate-700 text-xs text-[#CCFF00] font-bold">
-          {knownRecords.length} {language === 'pt' ? 'exercícios' : 'exercises'}
+          {knownRecords.length} {language === 'pt' ? 'recordes' : 'records'}
         </span>
       </div>
 
@@ -75,8 +75,8 @@ export const PersonalRecordsGallery: React.FC<PersonalRecordsGalleryProps> = ({
       {filteredRecords.length === 0 ? (
         <p className="rounded-2xl border border-slate-800 bg-[#1E293B] p-5 text-sm text-slate-400">
           {language === 'pt'
-            ? 'Ainda não há séries com carga registradas para os exercícios desta categoria.'
-            : 'No loaded sets have been recorded for exercises in this category yet.'}
+            ? 'Nenhum recorde pessoal confirmado para os exercícios desta categoria.'
+            : 'No confirmed personal records for exercises in this category yet.'}
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -85,11 +85,10 @@ export const PersonalRecordsGallery: React.FC<PersonalRecordsGalleryProps> = ({
             const name = language === 'pt' ? details.namePt : details.nameEn;
             const group = language === 'pt' ? details.groupPt : details.groupEn;
             const displayWeight = formatWeight(record.weightKg);
-            const estimated1RM = Math.round(displayWeight * (1 + record.reps / 30));
 
             return (
               <button
-                key={record.exerciseId}
+                key={`${record.exerciseId}-${record.type}`}
                 type="button"
                 onClick={() => onSelectExercise?.(record.exerciseId)}
                 className="text-left bg-[#1E293B] border border-slate-800/90 hover:border-[#CCFF00]/50 rounded-2xl p-5 transition-all flex flex-col justify-between group"
@@ -108,17 +107,15 @@ export const PersonalRecordsGallery: React.FC<PersonalRecordsGalleryProps> = ({
                 <div className="bg-[#0F172A] rounded-xl p-3 border border-slate-800/80 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] font-mono-numbers uppercase text-slate-500 block">
-                      {language === 'pt' ? 'Maior carga registrada' : 'Highest recorded load'}
+                      {record.type === 'load'
+                        ? language === 'pt' ? 'Recorde de carga' : 'Load record'
+                        : language === 'pt' ? 'Recorde de repetições' : 'Rep record'}
                     </span>
                     <span className="text-xl font-black font-mono-numbers text-[#CCFF00]">
-                      {displayWeight} <span className="text-xs font-normal text-slate-400">{unit} × {record.reps}</span>
+                      {record.type === 'load'
+                        ? <>{displayWeight} <span className="text-xs font-normal text-slate-400">{unit} × {record.reps}</span></>
+                        : <>{record.reps} <span className="text-xs font-normal text-slate-400">{language === 'pt' ? 'reps a' : 'reps at'} {displayWeight} {unit}</span></>}
                     </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-mono-numbers uppercase text-slate-500 block">
-                      {language === 'pt' ? '1RM estimado' : 'Est. 1RM'}
-                    </span>
-                    <span className="text-base font-extrabold font-mono-numbers text-[#38BDF8]">{estimated1RM} {unit}</span>
                   </div>
                 </div>
               </button>

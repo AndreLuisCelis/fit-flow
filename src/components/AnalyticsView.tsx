@@ -19,9 +19,9 @@ import {
 } from 'recharts';
 import { CompletedSessionSummary, MuscleGroup } from '../types/workout';
 import {
-  buildRealExercisePeaks,
   buildRealExerciseProgression,
   calculateRealWeeklyVolume,
+  extractRealPersonalRecordAchievements,
   filterRealSessions,
   getLastRealMuscleStimulus,
 } from '../services/workoutHistory';
@@ -106,7 +106,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ completedSessions,
     () => getLastRealMuscleStimulus(realSessions, selectedMuscleFocus),
     [realSessions, selectedMuscleFocus],
   );
-  const exercisePeaks = useMemo(() => buildRealExercisePeaks(realSessions), [realSessions]);
+  const personalRecords = useMemo(() => extractRealPersonalRecordAchievements(realSessions), [realSessions]);
 
   const CustomOverloadTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: ProgressionPoint }[] }) => {
     if (!active || !payload?.length) return null;
@@ -273,7 +273,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ completedSessions,
       </section>
 
       <PersonalRecordsGallery
-        records={exercisePeaks}
+        records={personalRecords}
         onSelectExercise={setSelectedExercise}
         language={language}
         unit={unit}
