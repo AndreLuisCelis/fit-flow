@@ -219,10 +219,49 @@ export function extractRealPersonalRecordAchievements(
   );
 }
 
-function addDays(date: string, days: number): string {
+export function addDays(date: string, days: number): string {
   const parsed = new Date(`${date}T00:00:00Z`);
   parsed.setUTCDate(parsed.getUTCDate() + days);
   return parsed.toISOString().slice(0, 10);
+}
+
+/**
+ * Returns a calendar date string in YYYY-MM-DD format based on local time.
+ * Avoids UTC shifting issues where toISOString() would return tomorrow or yesterday.
+ */
+export function getLocalDateString(input: Date | number | string = new Date()): string {
+  if (typeof input === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+      return input;
+    }
+    const d = new Date(input);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const d = typeof input === 'number' ? new Date(input) : input;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Parses YYYY-MM-DD into UTC epoch milliseconds for exact calendar day calculations.
+ */
+export function parseLocalDateStringToUtcMs(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+/**
+ * Computes calendar day difference (dateStrA - dateStrB).
+ */
+export function diffCalendarDays(dateStrA: string, dateStrB: string): number {
+  const msA = parseLocalDateStringToUtcMs(dateStrA);
+  const msB = parseLocalDateStringToUtcMs(dateStrB);
+  return Math.round((msA - msB) / (1000 * 60 * 60 * 24));
 }
 
 /**
@@ -231,7 +270,7 @@ function addDays(date: string, days: number): string {
  */
 export function calculateRealWeeklyVolume(
   sessions: CompletedSessionSummary[],
-  referenceDate = new Date().toISOString().slice(0, 10),
+  referenceDate = getLocalDateString(),
 ): WeeklyVolumeDay[] {
   const startDate = addDays(referenceDate, -6);
   const realSessions = filterRealSessions(sessions).filter(
@@ -356,42 +395,115 @@ export function extractRealPersonalRecords(sessions: CompletedSessionSummary[]):
 /**
  * Calculates user streak based strictly on real workout session dates.
  * Dates are sorted unique and consecutive days before today (or given reference date) are counted.
+ *
+ * Rules:
+ * - Multiple workouts on the same day count once.
+ * - Activity today maintains/starts the streak.
+ * - Last activity yesterday maintains the streak.
+ * - No activity today or yesterday breaks/resets streak to 0.
+ * - Demo sessions are completely ignored.
  */
 export function calculateRealStreak(sessions: CompletedSessionSummary[], referenceDateStr?: string): number {
   const real = filterRealSessions(sessions);
   if (real.length === 0) return 0;
 
+  const todayStr = referenceDateStr || getLocalDateString();
+  const todayMs = parseLocalDateStringToUtcMs(todayStr);
+
   const uniqueDates = Array.from(new Set(real.map((s) => s.date).filter(Boolean)))
+    .filter((d) => d <= todayStr)
     .sort()
     .reverse();
+
   if (uniqueDates.length === 0) return 0;
 
-  const todayStr = referenceDateStr || new Date().toISOString().split('T')[0];
   const mostRecent = uniqueDates[0];
+  const mostRecentMs = parseLocalDateStringToUtcMs(mostRecent);
+  const diffDays = Math.round((todayMs - mostRecentMs) / (1000 * 60 * 60 * 24));
 
-  const refTime = new Date(todayStr + 'T00:00:00').getTime();
-  const mostRecentTime = new Date(mostRecent + 'T00:00:00').getTime();
-  const diffDays = Math.round((refTime - mostRecentTime) / (1000 * 60 * 60 * 24));
-
-  if (diffDays > 1) {
-    return 0; // Streak broken if older than yesterday
+  if (diffDays > 1 || diffDays < 0) {
+    return 0; // Streak broken if older than yesterday or in the future
   }
 
   let streak = 1;
-  let currentDate = new Date(mostRecent + 'T00:00:00');
+  let currentDateMs = mostRecentMs;
 
   for (let i = 1; i < uniqueDates.length; i++) {
-    const prevDate = new Date(uniqueDates[i] + 'T00:00:00');
-    const dayDiff = Math.round((currentDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+    const prevDateMs = parseLocalDateStringToUtcMs(uniqueDates[i]);
+    const dayDiff = Math.round((currentDateMs - prevDateMs) / (1000 * 60 * 60 * 24));
     if (dayDiff === 1) {
       streak++;
-      currentDate = prevDate;
+      currentDateMs = prevDateMs;
     } else {
       break;
     }
   }
 
   return streak;
+}
+
+/**
+ * Updates streakHistory (boolean array for the last N calendar days, default 7).
+ * Updates strictly by calendar days elapsed, never duplicating the day if multiple
+ * workouts occur on the same date.
+ */
+export function updateStreakHistory(
+  currentHistory: boolean[] = [],
+  lastWorkoutDate: string | undefined,
+  currentWorkoutDate: string,
+  days = 7,
+): boolean[] {
+  const baseHistory = Array.isArray(currentHistory) && currentHistory.length === days
+    ? [...currentHistory]
+    : Array(days).fill(false);
+
+  if (!lastWorkoutDate) {
+    return [...baseHistory.slice(1), true];
+  }
+
+  const dayDiff = diffCalendarDays(currentWorkoutDate, lastWorkoutDate);
+
+  if (dayDiff <= 0) {
+    // Same calendar day: do not duplicate or shift!
+    // Simply ensure today is marked completed.
+    baseHistory[baseHistory.length - 1] = true;
+    return baseHistory;
+  }
+
+  if (dayDiff >= days) {
+    const result = Array(days).fill(false);
+    result[days - 1] = true;
+    return result;
+  }
+
+  // Shift by dayDiff days, filling intermediate skipped days with false and today with true
+  const shifted = baseHistory.slice(dayDiff);
+  const skipped = Array(dayDiff - 1).fill(false);
+  return [...shifted, ...skipped, true];
+}
+
+/**
+ * Calculates a boolean array for the last N calendar days ending on referenceDateStr (default 7).
+ * Each position indicates whether at least one real session occurred on that calendar date.
+ */
+export function calculateRealStreakHistory(
+  sessions: CompletedSessionSummary[],
+  referenceDateStr?: string,
+  days = 7,
+): boolean[] {
+  const referenceDate = referenceDateStr || getLocalDateString();
+  const realSessions = filterRealSessions(sessions);
+  const workoutDates = new Set(realSessions.map((s) => s.date).filter(Boolean));
+
+  const history: boolean[] = [];
+  const startDate = addDays(referenceDate, -(days - 1));
+
+  for (let i = 0; i < days; i++) {
+    const d = addDays(startDate, i);
+    history.push(workoutDates.has(d));
+  }
+
+  return history;
 }
 
 /**

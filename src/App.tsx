@@ -25,8 +25,12 @@ import { soundManager } from './utils/audio';
 import { rankCompatibleRoutines } from './utils/workoutPersonalization';
 import {
   calculatePersonalRecordAchievements,
+  calculateRealStreak,
+  filterRealSessions,
   formatPersonalRecordAchievements,
+  getLocalDateString,
   getRealExercisePreviousBest,
+  updateStreakHistory,
 } from './services/workoutHistory';
 import { Dumbbell, Play, Sparkles, Flame, CheckCircle, Shield } from 'lucide-react';
 
@@ -111,6 +115,18 @@ export default function App() {
       try {
         const hist = await fitFlowDB.getHistory();
         setCompletedSessions(hist);
+        const realSessions = filterRealSessions(hist);
+        if (realSessions.length > 0) {
+          const today = getLocalDateString();
+          const currentStreak = calculateRealStreak(realSessions, today);
+          setUserStats((prev) => {
+            if (prev.streakDays === currentStreak) return prev;
+            return {
+              ...prev,
+              streakDays: currentStreak,
+            };
+          });
+        }
       } catch (e) {
         console.warn('Could not load history from IndexedDB:', e);
       }
@@ -307,7 +323,7 @@ export default function App() {
     });
 
     const xpEarned = 350;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
 
     const exerciseDetails: CompletedExerciseSummary[] = activeSession.exercises
       .map(({ exercise, sets }) => ({
@@ -354,16 +370,24 @@ export default function App() {
       newTargetXP += 2000;
     }
 
+    const nextSessions = [summary, ...completedSessions];
+    const newStreakDays = calculateRealStreak(nextSessions, today);
+    const newStreakHistory = updateStreakHistory(
+      userStats.streakHistory,
+      userStats.lastWorkoutDate,
+      today,
+    );
+
     const updatedStats: UserStats = {
       ...userStats,
       level: newLevel,
       currentXP: newXP,
       xpForNextLevel: newTargetXP,
-      streakDays: userStats.streakDays + 1,
+      streakDays: newStreakDays,
       lastWorkoutDate: today,
       totalWorkoutsCompleted: userStats.totalWorkoutsCompleted + 1,
       totalLifetimeVolumeKg: userStats.totalLifetimeVolumeKg + Math.round(totalVol),
-      streakHistory: [...userStats.streakHistory.slice(1), true],
+      streakHistory: newStreakHistory,
     };
 
     setUserStats(updatedStats);
