@@ -14,6 +14,11 @@ import {
   buildRealExerciseProgression,
   calculateRealWeeklyVolume,
   getLastRealMuscleStimulus,
+  calculatePersonalRecordAchievements,
+  extractRealPersonalRecordAchievements,
+  formatPersonalRecordAchievements,
+  getPersonalRecordType,
+  getRealExercisePreviousBest,
 } from './workoutHistory';
 import { FitFlowDatabase, createFitFlowDatabase } from '../db/indexedDb';
 import { CompletedSessionSummary, Exercise, WorkoutRoutine } from '../types/workout';
@@ -468,4 +473,128 @@ test('14. Último estímulo muscular depende de detalhes reais e ignora demos', 
 
   assert.equal(getLastRealMuscleStimulus([older, latest, demo], 'chest'), '2026-11-05');
   assert.equal(getLastRealMuscleStimulus([older, latest, demo], 'quads'), null);
+});
+
+test('PRs só são concedidos ao superar séries reais e comparáveis do mesmo exercício', () => {
+  const earlierHistory = analyticsSession('pr-history-early', '2026-10-25', 100, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 75, reps: 8 }],
+  }]);
+  const latestHistory = analyticsSession('pr-history-late', '2026-11-01', 100, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 80, reps: 8 }],
+  }]);
+  const history = [latestHistory, earlierHistory];
+  const samePerformance = [{ exerciseId: 'bench_press', primaryMuscle: 'chest' as const, sets: [{ weight: 80, reps: 8 }] }];
+  const improvedLoad = [{ exerciseId: 'bench_press', primaryMuscle: 'chest' as const, sets: [{ weight: 82.5, reps: 8 }] }];
+  const differentExercise = [{ exerciseId: 'barbell_squat', primaryMuscle: 'quads' as const, sets: [{ weight: 100, reps: 8 }] }];
+
+  assert.deepEqual(calculatePersonalRecordAchievements([], samePerformance, {}, '2026-11-02'), []);
+  assert.deepEqual(calculatePersonalRecordAchievements(history, samePerformance, {}, '2026-11-02'), []);
+  assert.deepEqual(
+    calculatePersonalRecordAchievements(history, improvedLoad, { bench_press: 'Supino' }, '2026-11-02')
+      .map(({ type, weightKg, reps }) => ({ type, weightKg, reps })),
+    [{ type: 'load', weightKg: 82.5, reps: 8 }],
+  );
+  assert.deepEqual(calculatePersonalRecordAchievements(history, differentExercise, {}, '2026-11-02'), []);
+});
+
+test('Mais repetições na mesma carga é recorde; mais carga com menos reps não é falso positivo', () => {
+  const history = analyticsSession('rep-history', '2026-11-01', 100, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 80, reps: 8 }, { weight: 100, reps: 10 }],
+  }]);
+
+  const repRecord = calculatePersonalRecordAchievements([history], [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 80, reps: 9 }],
+  }], {}, '2026-11-02');
+  const incomparableLoad = calculatePersonalRecordAchievements([history], [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 110, reps: 8 }],
+  }], {}, '2026-11-02');
+
+  assert.deepEqual(repRecord.map(({ type, weightKg, reps }) => ({ type, weightKg, reps })), [
+    { type: 'reps', weightKg: 80, reps: 9 },
+  ]);
+  assert.deepEqual(incomparableLoad, []);
+});
+
+test('Demos e histórico legado sem séries não contaminam a comparação de PRs', () => {
+  const realHistory = analyticsSession('pr-real', '2026-11-01', 100, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 60, reps: 8 }],
+  }]);
+  const demoHistory = {
+    ...analyticsSession('pr-demo', '2026-11-02', 100000, [{
+      exerciseId: 'bench_press',
+      primaryMuscle: 'chest' as const,
+      sets: [{ weight: 200, reps: 8 }],
+    }]),
+    isDemo: true,
+  };
+  const legacyHistory = analyticsSession('pr-legacy', '2026-11-03', 100);
+  const current = [{ exerciseId: 'bench_press', primaryMuscle: 'chest' as const, sets: [{ weight: 70, reps: 8 }] }];
+
+  assert.deepEqual(
+    calculatePersonalRecordAchievements([realHistory, demoHistory], current, {}, '2026-11-04')
+      .map(({ type }) => type),
+    ['load'],
+  );
+  assert.deepEqual(calculatePersonalRecordAchievements([demoHistory, legacyHistory], current, {}, '2026-11-04'), []);
+});
+
+test('Séries inválidas não geram recordes e o baseline usa apenas valores reais válidos', () => {
+  const history = analyticsSession('valid-history', '2026-11-01', 100, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 80, reps: 8 }, { weight: -5, reps: 10 }, { weight: 90, reps: 8.5 }],
+  }]);
+  const baseline = getRealExercisePreviousBest([history], 'bench_press');
+
+  assert.deepEqual(baseline, {
+    weight: 80,
+    reps: 8,
+    repsByWeight: { '80': 8 },
+  });
+  assert.deepEqual(
+    calculatePersonalRecordAchievements([history], [{
+      exerciseId: 'bench_press',
+      primaryMuscle: 'chest',
+      sets: [{ weight: 100, reps: 8.5 }, { weight: -1, reps: 10 }],
+    }], {}, '2026-11-02'),
+    [],
+  );
+  assert.deepEqual(getPersonalRecordType({ weight: 90, reps: 7 }, baseline), []);
+});
+
+test('Resumo persiste conquistas confirmadas e a galeria não infere PRs de sessões antigas', () => {
+  const history = analyticsSession('summary-history', '2026-11-01', 100, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 80, reps: 8 }],
+  }]);
+  const records = calculatePersonalRecordAchievements([history], [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 82.5, reps: 8 }],
+  }], { bench_press: 'Supino' }, '2026-11-02');
+  const summary = {
+    ...analyticsSession('summary-new', '2026-11-02', 100),
+    prsAchieved: formatPersonalRecordAchievements(records, 'pt', 'kg'),
+    personalRecords: records,
+  };
+
+  assert.deepEqual(summary.prsAchieved, ['Supino — recorde de carga: 82.5 kg × 8']);
+  assert.deepEqual(extractRealPersonalRecordAchievements([summary]), records);
+  assert.deepEqual(extractRealPersonalRecordAchievements([{
+    ...history,
+    prsAchieved: ['PR legado sem evidência'],
+  }]), []);
 });

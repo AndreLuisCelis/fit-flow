@@ -22,6 +22,7 @@ export interface SetEntry {
   previousBest?: {
     weight: number;
     reps: number;
+    repsByWeight?: Record<string, number>;
   };
   rpe?: number; // 6 to 10
   isCompleted: boolean;
@@ -95,6 +96,7 @@ export interface CompletedSessionSummary {
   prsAchieved: string[];
   isDemo?: boolean;
   exerciseDetails?: CompletedExerciseSummary[];
+  personalRecords?: PersonalRecordAchievement[];
 }
 
 export interface CompletedExerciseSummary {
@@ -105,6 +107,15 @@ export interface CompletedExerciseSummary {
     weight: number;
     reps: number;
   }[];
+}
+
+export interface PersonalRecordAchievement {
+  exerciseId: string;
+  exerciseName: string;
+  type: 'load' | 'reps';
+  weightKg: number;
+  reps: number;
+  date: string;
 }
 
 export interface MasteryBadge {

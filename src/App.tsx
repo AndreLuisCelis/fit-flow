@@ -4,7 +4,8 @@ import {
   ActiveWorkoutSession, 
   CompletedSessionSummary, 
   UserStats, 
-  MasteryBadge 
+  MasteryBadge,
+  CompletedExerciseSummary,
 } from './types/workout';
 import { PRESET_ROUTINES, EXERCISE_DATABASE, INITIAL_USER_STATS, INITIAL_BADGES } from './data/presetRoutines';
 import { Navbar } from './components/Navbar';
@@ -22,6 +23,11 @@ import { userProfileStore, UserProfileReadResult } from './services/userProfile'
 import { UserProfile } from './types/profile';
 import { soundManager } from './utils/audio';
 import { rankCompatibleRoutines } from './utils/workoutPersonalization';
+import {
+  calculatePersonalRecordAchievements,
+  formatPersonalRecordAchievements,
+  getRealExercisePreviousBest,
+} from './services/workoutHistory';
 import { Dumbbell, Play, Sparkles, Flame, CheckCircle, Shield } from 'lucide-react';
 
 export default function App() {
@@ -202,7 +208,10 @@ export default function App() {
         };
         return {
           exercise: baseEx,
-          sets: JSON.parse(JSON.stringify(item.sets)),
+          sets: JSON.parse(JSON.stringify(item.sets)).map((set: ActiveWorkoutSession['exercises'][number]['sets'][number]) => ({
+            ...set,
+            previousBest: getRealExercisePreviousBest(completedSessions, item.exerciseId),
+          })),
           targetRestSeconds: item.targetRestSeconds || 75,
           notes: item.customNotes,
         };
@@ -300,6 +309,27 @@ export default function App() {
     const xpEarned = 350;
     const today = new Date().toISOString().split('T')[0];
 
+    const exerciseDetails: CompletedExerciseSummary[] = activeSession.exercises
+      .map(({ exercise, sets }) => ({
+        exerciseId: exercise.id,
+        primaryMuscle: exercise.primaryMuscle,
+        secondaryMuscles: exercise.secondaryMuscles,
+        sets: sets
+          .filter((set) => set.isCompleted && Number.isFinite(set.weight) && set.weight >= 0 && Number.isInteger(set.reps) && set.reps > 0)
+          .map(({ weight, reps }) => ({ weight, reps })),
+      }))
+      .filter(({ sets }) => sets.length > 0);
+    const exerciseNames = Object.fromEntries(activeSession.exercises.map(({ exercise }) => [
+      exercise.id,
+      language === 'pt' ? exercise.namePt : exercise.name,
+    ]));
+    const personalRecords = calculatePersonalRecordAchievements(
+      completedSessions,
+      exerciseDetails,
+      exerciseNames,
+      today,
+    );
+
     const summary: CompletedSessionSummary = {
       id: `sess-${Date.now()}`,
       date: today,
@@ -309,17 +339,9 @@ export default function App() {
       setsCount,
       repsCount,
       xpEarned,
-      prsAchieved: [],
-      exerciseDetails: activeSession.exercises
-        .map(({ exercise, sets }) => ({
-          exerciseId: exercise.id,
-          primaryMuscle: exercise.primaryMuscle,
-          secondaryMuscles: exercise.secondaryMuscles,
-          sets: sets
-            .filter((set) => set.isCompleted && Number.isFinite(set.weight) && set.weight >= 0 && Number.isFinite(set.reps) && set.reps > 0)
-            .map(({ weight, reps }) => ({ weight, reps })),
-        }))
-        .filter(({ sets }) => sets.length > 0),
+      prsAchieved: formatPersonalRecordAchievements(personalRecords, language, unit),
+      personalRecords,
+      exerciseDetails,
     };
 
     // Update User Stats

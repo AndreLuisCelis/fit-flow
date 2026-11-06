@@ -1,4 +1,12 @@
-import { CompletedExerciseSummary, CompletedSessionSummary, Exercise, MuscleGroup, WorkoutRoutine } from '../types/workout';
+import {
+  CompletedExerciseSummary,
+  CompletedSessionSummary,
+  Exercise,
+  MuscleGroup,
+  PersonalRecordAchievement,
+  SetEntry,
+  WorkoutRoutine,
+} from '../types/workout';
 
 export const KNOWN_DEMO_SESSION_IDS = ['sess-seed-1', 'sess-seed-2'] as const;
 
@@ -76,6 +84,139 @@ export interface ExerciseProgressionPoint {
 
 export interface RecordedExercisePeak extends ExerciseProgressionPoint {
   exerciseId: string;
+}
+
+export type ExercisePreviousBest = NonNullable<SetEntry['previousBest']>;
+
+function isValidRecordedSet(set: { weight: number; reps: number }): boolean {
+  return Number.isFinite(set.weight) && set.weight >= 0 &&
+    Number.isInteger(set.reps) && set.reps > 0;
+}
+
+/**
+ * Builds comparison baselines from actual sets in real sessions.
+ */
+export function getRealExercisePreviousBest(
+  sessions: CompletedSessionSummary[],
+  exerciseId: string,
+): ExercisePreviousBest | undefined {
+  const sets = filterRealSessions(sessions)
+    .flatMap((session) => session.exerciseDetails || [])
+    .filter((exercise) => exercise.exerciseId === exerciseId)
+    .flatMap((exercise) => exercise.sets)
+    .filter(isValidRecordedSet);
+  if (sets.length === 0) return undefined;
+
+  const bestSet = sets.reduce((best, set) =>
+    set.weight > best.weight || (set.weight === best.weight && set.reps > best.reps) ? set : best,
+  );
+  const repsByWeight: Record<string, number> = {};
+
+  sets.forEach(({ weight, reps }) => {
+    repsByWeight[String(weight)] = Math.max(repsByWeight[String(weight)] ?? 0, reps);
+  });
+
+  return { ...bestSet, repsByWeight };
+}
+
+export function getPersonalRecordType(
+  set: Pick<SetEntry, 'weight' | 'reps'>,
+  previousBest?: ExercisePreviousBest,
+): PersonalRecordAchievement['type'][] {
+  if (!previousBest || !isValidRecordedSet(set)) return [];
+  const achievements: PersonalRecordAchievement['type'][] = [];
+  const previousRepsAtWeight = previousBest.repsByWeight?.[String(set.weight)];
+
+  if (set.weight > previousBest.weight && set.reps >= previousBest.reps) {
+    achievements.push('load');
+  }
+  if (previousRepsAtWeight !== undefined && set.reps > previousRepsAtWeight) {
+    achievements.push('reps');
+  }
+  return achievements;
+}
+
+export function calculatePersonalRecordAchievements(
+  history: CompletedSessionSummary[],
+  completedExercises: CompletedExerciseSummary[],
+  exerciseNames: Record<string, string>,
+  date: string,
+): PersonalRecordAchievement[] {
+  const achievements: PersonalRecordAchievement[] = [];
+
+  completedExercises.forEach((exercise) => {
+    const previousBest = getRealExercisePreviousBest(history, exercise.exerciseId);
+    if (!previousBest) return;
+
+    const validSets = exercise.sets.filter(isValidRecordedSet);
+    const repsCounts = new Set(validSets.map((set) => set.reps));
+    const weights = new Set(validSets.map((set) => set.weight));
+
+    repsCounts.forEach((reps) => {
+      const currentBestWeight = Math.max(...validSets.filter((set) => set.reps === reps).map((set) => set.weight));
+      if (getPersonalRecordType({ weight: currentBestWeight, reps }, previousBest).includes('load')) {
+        achievements.push({
+          exerciseId: exercise.exerciseId,
+          exerciseName: exerciseNames[exercise.exerciseId] || exercise.exerciseId,
+          type: 'load',
+          weightKg: currentBestWeight,
+          reps,
+          date,
+        });
+      }
+    });
+
+    weights.forEach((weightKg) => {
+      const currentBestReps = Math.max(...validSets.filter((set) => set.weight === weightKg).map((set) => set.reps));
+      if (getPersonalRecordType({ weight: weightKg, reps: currentBestReps }, previousBest).includes('reps')) {
+        achievements.push({
+          exerciseId: exercise.exerciseId,
+          exerciseName: exerciseNames[exercise.exerciseId] || exercise.exerciseId,
+          type: 'reps',
+          weightKg,
+          reps: currentBestReps,
+          date,
+        });
+      }
+    });
+  });
+
+  return achievements;
+}
+
+export function formatPersonalRecordAchievements(
+  achievements: PersonalRecordAchievement[],
+  language: 'pt' | 'en',
+  unit: 'kg' | 'lbs',
+): string[] {
+  return achievements.map((record) => {
+    const weight = unit === 'lbs'
+      ? `${Math.round(record.weightKg * 2.20462)} lbs`
+      : `${record.weightKg} kg`;
+    const typeLabel = record.type === 'load'
+      ? language === 'pt' ? 'recorde de carga' : 'load record'
+      : language === 'pt' ? 'recorde de repetições' : 'rep record';
+    return `${record.exerciseName} — ${typeLabel}: ${weight} × ${record.reps}`;
+  });
+}
+
+export function extractRealPersonalRecordAchievements(
+  sessions: CompletedSessionSummary[],
+): PersonalRecordAchievement[] {
+  const bestRecords = new Map<string, PersonalRecordAchievement>();
+  filterRealSessions(sessions).forEach((session) => {
+    (session.personalRecords || []).forEach((record) => {
+      const key = `${record.exerciseId}:${record.type}`;
+      const current = bestRecords.get(key);
+      const isBetter = !current || (record.type === 'load'
+        ? record.weightKg > current.weightKg || (record.weightKg === current.weightKg && record.reps > current.reps)
+        : record.reps > current.reps || (record.reps === current.reps && record.weightKg > current.weightKg));
+      if (isBetter) bestRecords.set(key, record);
+    });
+  });
+  return Array.from(bestRecords.values()).sort((a, b) =>
+    a.exerciseName.localeCompare(b.exerciseName) || a.type.localeCompare(b.type),
+  );
 }
 
 function addDays(date: string, days: number): string {

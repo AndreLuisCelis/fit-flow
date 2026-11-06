@@ -22,6 +22,7 @@ import { ExerciseGuideCard } from './ExerciseGuideCard';
 import { MuscleDiagram } from './MuscleDiagram';
 import { getMuscleLabel, getExerciseNotes, getTempoLabel } from '../utils/localization';
 import { soundManager } from '../utils/audio';
+import { getPersonalRecordType } from '../services/workoutHistory';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -136,15 +137,15 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
       setTimeout(() => setTonnageBump(false), 500);
 
       // Check if this is a personal record
-      const isPR = targetSet.previousBest && (
-        targetSet.weight > targetSet.previousBest.weight ||
-        (targetSet.weight === targetSet.previousBest.weight && targetSet.reps > targetSet.previousBest.reps)
-      );
+      const personalRecordTypes = getPersonalRecordType(targetSet, targetSet.previousBest);
 
-      if (isPR) {
+      if (personalRecordTypes.length > 0) {
+        const recordType = personalRecordTypes.includes('load')
+          ? language === 'pt' ? 'RECORDE DE CARGA' : 'LOAD RECORD'
+          : language === 'pt' ? 'RECORDE DE REPETIÇÕES' : 'REP RECORD';
         setCelebrationPR(language === 'pt'
-          ? `NOVO RECORDE: ${formatWeight(targetSet.weight)} ${unit} × ${targetSet.reps} repetições!`
-          : `NEW PR: ${formatWeight(targetSet.weight)} ${unit} × ${targetSet.reps} reps!`);
+          ? `${recordType}: ${formatWeight(targetSet.weight)} ${unit} × ${targetSet.reps} repetições!`
+          : `${recordType}: ${formatWeight(targetSet.weight)} ${unit} × ${targetSet.reps} reps!`);
         confetti({
           particleCount: 80,
           spread: 70,
