@@ -68,8 +68,8 @@ export const ExerciseGuideCard: React.FC<ExerciseGuideCardProps> = ({
       ) : (
         <p className="text-xs leading-relaxed text-slate-400 italic">
           {language === 'pt'
-            ? guide?.descriptionPt || 'Sem descrição de execução disponível.'
-            : guide?.description || 'Execution description not available.'}
+            ? 'Sem descrição de execução disponível.'
+            : 'Execution description not available.'}
         </p>
       )}
     </div>

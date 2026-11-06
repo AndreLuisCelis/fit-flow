@@ -60,14 +60,6 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
 
   const { exercise, sets } = currentExerciseItem;
 
-  {/* Exercise Guide Card - appears at the top of the session */}
-  <div className="mb-4">
-    <ExerciseGuideCard
-      exercise={exercise}
-      language={language}
-    />
-  </div>
-
   // Convert kg to display unit, rounding to .0 or .5 increments
   const formatWeight = (kg: number) => {
     if (unit === 'lbs') {
@@ -341,6 +333,14 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
             {language === 'pt' ? 'Sair' : 'Discard'}
           </button>
         </div>
+      </div>
+
+      {/* Exercise Guide Card - appears at the top of the session */}
+      <div className="mb-4">
+        <ExerciseGuideCard
+          exercise={exercise}
+          language={language}
+        />
       </div>
 
       {/* Main Grid: Left Anatomy & Cues, Right Active Stepper & Set Matrix */}

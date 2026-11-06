@@ -1,6 +1,6 @@
 import { MuscleGroup } from '../types/workout';
 
-const muscleNamesPt: Record<MuscleGroup, string> = {
+const muscleNamesPt: Record<MuscleGroup | 'arms', string> = {
   chest: 'Peitoral',
   back: 'Costas',
   shoulders: 'Ombros',
