@@ -94,6 +94,17 @@ export interface CompletedSessionSummary {
   xpEarned: number;
   prsAchieved: string[];
   isDemo?: boolean;
+  exerciseDetails?: CompletedExerciseSummary[];
+}
+
+export interface CompletedExerciseSummary {
+  exerciseId: string;
+  primaryMuscle: MuscleGroup;
+  secondaryMuscles?: MuscleGroup[];
+  sets: {
+    weight: number;
+    reps: number;
+  }[];
 }
 
 export interface MasteryBadge {

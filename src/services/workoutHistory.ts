@@ -1,4 +1,4 @@
-import { CompletedSessionSummary, Exercise, WorkoutRoutine } from '../types/workout';
+import { CompletedExerciseSummary, CompletedSessionSummary, Exercise, MuscleGroup, WorkoutRoutine } from '../types/workout';
 
 export const KNOWN_DEMO_SESSION_IDS = ['sess-seed-1', 'sess-seed-2'] as const;
 
@@ -59,7 +59,126 @@ export function filterRealSessions(sessions: CompletedSessionSummary[]): Complet
  * Calculates total volume moved in kg, strictly ignoring demo sessions.
  */
 export function calculateRealTotalVolume(sessions: CompletedSessionSummary[]): number {
-  return filterRealSessions(sessions).reduce((acc, s) => acc + (s.totalVolumeKg || 0), 0);
+  return filterRealSessions(sessions).reduce((acc, s) => acc + (Number.isFinite(s.totalVolumeKg) ? s.totalVolumeKg : 0), 0);
+}
+
+export interface WeeklyVolumeDay {
+  date: string;
+  volumeKg: number;
+  sessionCount: number;
+}
+
+export interface ExerciseProgressionPoint {
+  date: string;
+  weightKg: number;
+  reps: number;
+}
+
+export interface RecordedExercisePeak extends ExerciseProgressionPoint {
+  exerciseId: string;
+}
+
+function addDays(date: string, days: number): string {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
+/**
+ * Returns actual daily volume for the seven calendar days ending on referenceDate.
+ * Zero-volume days represent days with no recorded sessions, not generated workout data.
+ */
+export function calculateRealWeeklyVolume(
+  sessions: CompletedSessionSummary[],
+  referenceDate = new Date().toISOString().slice(0, 10),
+): WeeklyVolumeDay[] {
+  const startDate = addDays(referenceDate, -6);
+  const realSessions = filterRealSessions(sessions).filter(
+    (session) => session.date >= startDate && session.date <= referenceDate,
+  );
+  const volumeByDate = new Map<string, WeeklyVolumeDay>();
+
+  for (let offset = 0; offset < 7; offset++) {
+    const date = addDays(startDate, offset);
+    volumeByDate.set(date, { date, volumeKg: 0, sessionCount: 0 });
+  }
+
+  realSessions.forEach((session) => {
+    const day = volumeByDate.get(session.date);
+    if (!day) return;
+    day.volumeKg += Number.isFinite(session.totalVolumeKg) ? session.totalVolumeKg : 0;
+    day.sessionCount++;
+  });
+
+  return Array.from(volumeByDate.values());
+}
+
+/**
+ * Builds one maximum-load point per real session using recorded sets only.
+ */
+export function buildRealExerciseProgression(
+  sessions: CompletedSessionSummary[],
+  exerciseId: string,
+): ExerciseProgressionPoint[] {
+  return filterRealSessions(sessions)
+    .map((session) => {
+      const sets = (session.exerciseDetails || [])
+        .filter((exercise) => exercise.exerciseId === exerciseId)
+        .flatMap((exercise) => exercise.sets)
+        .filter((set) => Number.isFinite(set.weight) && set.weight > 0 && Number.isFinite(set.reps) && set.reps > 0);
+      if (sets.length === 0) return null;
+
+      const peak = sets.reduce((highest, current) => current.weight > highest.weight ? current : highest);
+      return { date: session.date, weightKg: peak.weight, reps: peak.reps, sessionId: session.id };
+    })
+    .filter((point): point is ExerciseProgressionPoint & { sessionId: string } => point !== null)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.sessionId.localeCompare(b.sessionId))
+    .map(({ date, weightKg, reps }) => ({ date, weightKg, reps }));
+}
+
+/**
+ * Returns the date of the most recent real workout with completed sets for a muscle.
+ * This does not infer a physiological recovery percentage.
+ */
+export function getLastRealMuscleStimulus(
+  sessions: CompletedSessionSummary[],
+  muscle: MuscleGroup,
+): string | null {
+  return filterRealSessions(sessions)
+    .filter((session) => (session.exerciseDetails || []).some((exercise) =>
+      (exercise.primaryMuscle === muscle || exercise.secondaryMuscles?.includes(muscle)) &&
+      exercise.sets.some((set) => Number.isFinite(set.reps) && set.reps > 0),
+    ))
+    .map((session) => session.date)
+    .filter(Boolean)
+    .sort()
+    .at(-1) || null;
+}
+
+/**
+ * Finds the highest positively loaded set recorded for each exercise.
+ */
+export function buildRealExercisePeaks(sessions: CompletedSessionSummary[]): RecordedExercisePeak[] {
+  const peaks = new Map<string, RecordedExercisePeak>();
+
+  filterRealSessions(sessions).forEach((session) => {
+    (session.exerciseDetails || []).forEach((exercise: CompletedExerciseSummary) => {
+      exercise.sets.forEach((set) => {
+        if (!Number.isFinite(set.weight) || set.weight <= 0 || !Number.isFinite(set.reps) || set.reps <= 0) return;
+        const current = peaks.get(exercise.exerciseId);
+        if (!current || set.weight > current.weightKg) {
+          peaks.set(exercise.exerciseId, {
+            exerciseId: exercise.exerciseId,
+            date: session.date,
+            weightKg: set.weight,
+            reps: set.reps,
+          });
+        }
+      });
+    });
+  });
+
+  return Array.from(peaks.values()).sort((a, b) => a.exerciseId.localeCompare(b.exerciseId));
 }
 
 /**

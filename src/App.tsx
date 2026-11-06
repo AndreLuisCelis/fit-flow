@@ -309,7 +309,17 @@ export default function App() {
       setsCount,
       repsCount,
       xpEarned,
-      prsAchieved: ['Volume Breakthrough (+2.5%)'],
+      prsAchieved: [],
+      exerciseDetails: activeSession.exercises
+        .map(({ exercise, sets }) => ({
+          exerciseId: exercise.id,
+          primaryMuscle: exercise.primaryMuscle,
+          secondaryMuscles: exercise.secondaryMuscles,
+          sets: sets
+            .filter((set) => set.isCompleted && Number.isFinite(set.weight) && set.weight >= 0 && Number.isFinite(set.reps) && set.reps > 0)
+            .map(({ weight, reps }) => ({ weight, reps })),
+        }))
+        .filter(({ sets }) => sets.length > 0),
     };
 
     // Update User Stats

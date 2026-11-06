@@ -10,6 +10,10 @@ import {
   calculateRealStreak,
   extractRealFrequentExercises,
   KNOWN_DEMO_SESSION_IDS,
+  buildRealExercisePeaks,
+  buildRealExerciseProgression,
+  calculateRealWeeklyVolume,
+  getLastRealMuscleStimulus,
 } from './workoutHistory';
 import { FitFlowDatabase, createFitFlowDatabase } from '../db/indexedDb';
 import { CompletedSessionSummary, Exercise, WorkoutRoutine } from '../types/workout';
@@ -354,4 +358,114 @@ test('8. Idempotência da migração de banco', async () => {
   assert.equal(openResult3.length, 1);
   assert.equal(openResult3[0].id, mockRealSession1.id);
   assert.equal(historyMap.size, 1);
+});
+
+const analyticsSession = (
+  id: string,
+  date: string,
+  totalVolumeKg: number,
+  exerciseDetails?: CompletedSessionSummary['exerciseDetails'],
+): CompletedSessionSummary => ({
+  id,
+  date,
+  routineTitle: 'Real workout',
+  durationSeconds: 1800,
+  totalVolumeKg,
+  setsCount: exerciseDetails?.reduce((sum, exercise) => sum + exercise.sets.length, 0) || 0,
+  repsCount: 0,
+  xpEarned: 0,
+  prsAchieved: [],
+  exerciseDetails,
+});
+
+test('9. Indicadores ficam vazios sem sessões reais', () => {
+  const weekly = calculateRealWeeklyVolume([], '2026-11-06');
+  assert.equal(weekly.length, 7);
+  assert.equal(weekly.reduce((sum, day) => sum + day.volumeKg, 0), 0);
+  assert.deepEqual(buildRealExerciseProgression([], 'bench_press'), []);
+  assert.deepEqual(buildRealExercisePeaks([]), []);
+  assert.equal(getLastRealMuscleStimulus([], 'chest'), null);
+});
+
+test('10. Progressão usa uma sessão real e séries registradas, sem fabricar pontos', () => {
+  const session = analyticsSession('real-1', '2026-11-05', 240, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 60, reps: 8 }, { weight: 65, reps: 6 }],
+  }]);
+
+  assert.deepEqual(buildRealExerciseProgression([session], 'bench_press'), [
+    { date: '2026-11-05', weightKg: 65, reps: 6 },
+  ]);
+  assert.deepEqual(buildRealExerciseProgression([session], 'barbell_squat'), []);
+});
+
+test('11. Progressão ordena sessões cronologicamente e ignora sessões demo misturadas', () => {
+  const earlier = analyticsSession('real-early', '2026-11-01', 100, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 50, reps: 10 }],
+  }]);
+  const later = analyticsSession('real-late', '2026-11-05', 200, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    sets: [{ weight: 70, reps: 5 }],
+  }]);
+  const demo = {
+    ...analyticsSession('fake', '2026-11-03', 50000, [{
+      exerciseId: 'bench_press',
+      primaryMuscle: 'chest' as const,
+      sets: [{ weight: 250, reps: 10 }],
+    }]),
+    isDemo: true,
+  };
+
+  assert.deepEqual(buildRealExerciseProgression([later, demo, earlier], 'bench_press'), [
+    { date: '2026-11-01', weightKg: 50, reps: 10 },
+    { date: '2026-11-05', weightKg: 70, reps: 5 },
+  ]);
+});
+
+test('12. Volume semanal usa somente sessões reais dentro dos últimos sete dias', () => {
+  const inRangeA = analyticsSession('weekly-a', '2026-11-01', 1200);
+  const inRangeB = analyticsSession('weekly-b', '2026-11-03', 3400);
+  const outsideRange = analyticsSession('old', '2026-10-30', 9000);
+  const future = analyticsSession('future', '2026-11-07', 8000);
+  const demo = { ...analyticsSession('fake', '2026-11-02', 50000), isDemo: true };
+
+  const weekly = calculateRealWeeklyVolume([inRangeA, outsideRange, demo, inRangeB, future], '2026-11-06');
+  assert.equal(weekly.length, 7);
+  assert.equal(weekly[0].date, '2026-10-31');
+  assert.equal(weekly.reduce((sum, day) => sum + day.volumeKg, 0), 4600);
+  assert.equal(weekly.reduce((sum, day) => sum + day.sessionCount, 0), 2);
+  assert.equal(weekly.find((day) => day.date === '2026-11-01')?.volumeKg, 1200);
+  assert.equal(weekly.find((day) => day.date === '2026-11-03')?.volumeKg, 3400);
+});
+
+test('13. Séries insuficientes não geram progressão, recordes ou estado de recuperação', () => {
+  const summaryOnly = analyticsSession('legacy-real', '2026-11-05', 5000);
+  assert.deepEqual(buildRealExerciseProgression([summaryOnly], 'bench_press'), []);
+  assert.deepEqual(buildRealExercisePeaks([summaryOnly]), []);
+  assert.equal(getLastRealMuscleStimulus([summaryOnly], 'chest'), null);
+});
+
+test('14. Último estímulo muscular depende de detalhes reais e ignora demos', () => {
+  const older = analyticsSession('chest-old', '2026-11-01', 100, [{
+    exerciseId: 'bench_press',
+    primaryMuscle: 'chest',
+    secondaryMuscles: ['triceps'],
+    sets: [{ weight: 40, reps: 10 }],
+  }]);
+  const latest = analyticsSession('chest-new', '2026-11-05', 100, [{
+    exerciseId: 'press', primaryMuscle: 'shoulders', secondaryMuscles: ['chest'], sets: [{ weight: 20, reps: 8 }],
+  }]);
+  const demo = {
+    ...analyticsSession('chest-fake', '2026-11-06', 99999, [{
+      exerciseId: 'bench_press', primaryMuscle: 'chest' as const, sets: [{ weight: 300, reps: 1 }],
+    }]),
+    isDemo: true,
+  };
+
+  assert.equal(getLastRealMuscleStimulus([older, latest, demo], 'chest'), '2026-11-05');
+  assert.equal(getLastRealMuscleStimulus([older, latest, demo], 'quads'), null);
 });

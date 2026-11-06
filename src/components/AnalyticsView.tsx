@@ -1,34 +1,34 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  Activity, 
-  TrendingUp, 
-  Clock, 
-  Calendar, 
-  Dumbbell, 
-  Zap, 
-  ShieldCheck, 
+import React, { useMemo, useState } from 'react';
+import {
+  Activity,
+  Calendar,
+  Clock,
   Download,
-  Flame,
-  Award,
-  ChevronRight,
-  ArrowUpRight
+  ShieldCheck,
+  TrendingUp,
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ReferenceLine 
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 import { CompletedSessionSummary, MuscleGroup } from '../types/workout';
+import {
+  buildRealExercisePeaks,
+  buildRealExerciseProgression,
+  calculateRealWeeklyVolume,
+  filterRealSessions,
+  getLastRealMuscleStimulus,
+} from '../services/workoutHistory';
+import { getMuscleLabel } from '../utils/localization';
+import { soundManager } from '../utils/audio';
 import { MuscleDiagram } from './MuscleDiagram';
 import { PersonalRecordsGallery } from './PersonalRecordsGallery';
-import { soundManager } from '../utils/audio';
-import { getMuscleLabel } from '../utils/localization';
-import { filterRealSessions } from '../services/workoutHistory';
 
 interface AnalyticsViewProps {
   completedSessions: CompletedSessionSummary[];
@@ -43,191 +43,110 @@ interface ProgressionPoint {
   reps: number;
   displayWeight: number;
   estimated1RM: number;
-  note?: string;
-  isDemo?: boolean;
 }
 
-export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
-  completedSessions,
-  language,
-  unit,
-}) => {
-  const [selectedMuscleFocus, setSelectedMuscleFocus] = useState<MuscleGroup>('chest');
-  const [selectedExercise, setSelectedExercise] = useState<string>('bench_press');
+const trackableExercises = [
+  { id: 'bench_press', namePt: 'Supino Reto com Barra', nameEn: 'Barbell Bench Press' },
+  { id: 'barbell_squat', namePt: 'Agachamento Livre com Barra', nameEn: 'Barbell Back Squat' },
+  { id: 'barbell_deadlift', namePt: 'Levantamento Terra Convencional', nameEn: 'Conventional Deadlift' },
+  { id: 'overhead_press', namePt: 'Desenvolvimento Militar (OHP)', nameEn: 'Standing Barbell OHP' },
+  { id: 'barbell_row', namePt: 'Remada Curvada com Barra', nameEn: 'Bent-Over Barbell Row' },
+];
 
+export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ completedSessions, language, unit }) => {
+  const [selectedMuscleFocus, setSelectedMuscleFocus] = useState<MuscleGroup>('chest');
+  const [selectedExercise, setSelectedExercise] = useState('bench_press');
   const realSessions = useMemo(() => filterRealSessions(completedSessions), [completedSessions]);
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // DEMO MODE GUARD – Demo data only shown when user has no real sessions.
-  // This guarantees demo data is never presented as real user metrics.
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const isDemoMode = realSessions.length === 0;
+  const formatWeight = (kg: number) => unit === 'lbs' ? Math.round(kg * 2.20462) : Math.round(kg * 10) / 10;
 
-  const formatWeight = (kg: number) => {
-    if (unit === 'lbs') return Math.round(kg * 2.20462);
-    return Math.round(kg * 10) / 10;
-  };
-
-  // Supported exercises for progressive overload tracking
-  const trackableExercises = [
-    { id: 'bench_press', namePt: 'Supino Reto com Barra', nameEn: 'Barbell Bench Press', muscle: 'Peitoral' },
-    { id: 'barbell_squat', namePt: 'Agachamento Livre com Barra', nameEn: 'Barbell Back Squat', muscle: 'Quadríceps' },
-    { id: 'barbell_deadlift', namePt: 'Levantamento Terra Convencional', nameEn: 'Conventional Deadlift', muscle: 'Dorsais' },
-    { id: 'overhead_press', namePt: 'Desenvolvimento Militar (OHP)', nameEn: 'Standing Barbell OHP', muscle: 'Ombros' },
-    { id: 'barbell_row', namePt: 'Remada Curvada com Barra', nameEn: 'Bent-Over Barbell Row', muscle: 'Costas' },
-  ];
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // DEMO / MOCK DATA – Only used when user has no real sessions logged.
-  // These are clearly isolated and never presented as real user metrics.
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  const DEMO_OVERLOAD_HISTORY: Record<string, { date: string; displayDatePt: string; displayDateEn: string; weightKg: number; reps: number }[]> = {
-    bench_press: [
-      { date: '2026-09-18', displayDatePt: '18 Set', displayDateEn: 'Sep 18', weightKg: 75, reps: 8 },
-      { date: '2026-09-25', displayDatePt: '25 Set', displayDateEn: 'Sep 25', weightKg: 77.5, reps: 8 },
-      { date: '2026-10-02', displayDatePt: '02 Out', displayDateEn: 'Oct 02', weightKg: 80, reps: 8 },
-      { date: '2026-10-09', displayDatePt: '09 Out', displayDateEn: 'Oct 09', weightKg: 82.5, reps: 7 },
-      { date: '2026-10-16', displayDatePt: '16 Out', displayDateEn: 'Oct 16', weightKg: 85, reps: 8 },
-      { date: '2026-10-23', displayDatePt: '23 Out', displayDateEn: 'Oct 23', weightKg: 87.5, reps: 6 },
-      { date: '2026-10-30', displayDatePt: '30 Out', displayDateEn: 'Oct 30', weightKg: 90, reps: 8 },
-    ],
-    barbell_squat: [
-      { date: '2026-09-18', displayDatePt: '18 Set', displayDateEn: 'Sep 18', weightKg: 95, reps: 6 },
-      { date: '2026-09-25', displayDatePt: '25 Set', displayDateEn: 'Sep 25', weightKg: 100, reps: 6 },
-      { date: '2026-10-02', displayDatePt: '02 Out', displayDateEn: 'Oct 02', weightKg: 105, reps: 6 },
-      { date: '2026-10-09', displayDatePt: '09 Out', displayDateEn: 'Oct 09', weightKg: 110, reps: 5 },
-      { date: '2026-10-16', displayDatePt: '16 Out', displayDateEn: 'Oct 16', weightKg: 115, reps: 6 },
-      { date: '2026-10-23', displayDatePt: '23 Out', displayDateEn: 'Oct 23', weightKg: 117.5, reps: 6 },
-      { date: '2026-10-28', displayDatePt: '28 Out', displayDateEn: 'Oct 28', weightKg: 120, reps: 6 },
-    ],
-    barbell_deadlift: [
-      { date: '2026-09-18', displayDatePt: '18 Set', displayDateEn: 'Sep 18', weightKg: 125, reps: 5 },
-      { date: '2026-09-25', displayDatePt: '25 Set', displayDateEn: 'Sep 25', weightKg: 130, reps: 5 },
-      { date: '2026-10-02', displayDatePt: '02 Out', displayDateEn: 'Oct 02', weightKg: 135, reps: 5 },
-      { date: '2026-10-09', displayDatePt: '09 Out', displayDateEn: 'Oct 09', weightKg: 140, reps: 5 },
-      { date: '2026-10-16', displayDatePt: '16 Out', displayDateEn: 'Oct 16', weightKg: 145, reps: 5 },
-      { date: '2026-10-26', displayDatePt: '26 Out', displayDateEn: 'Oct 26', weightKg: 150, reps: 5 },
-    ],
-    overhead_press: [
-      { date: '2026-09-18', displayDatePt: '18 Set', displayDateEn: 'Sep 18', weightKg: 45, reps: 8 },
-      { date: '2026-09-25', displayDatePt: '25 Set', displayDateEn: 'Sep 25', weightKg: 47.5, reps: 8 },
-      { date: '2026-10-02', displayDatePt: '02 Out', displayDateEn: 'Oct 02', weightKg: 47.5, reps: 8 },
-      { date: '2026-10-16', displayDatePt: '16 Out', displayDateEn: 'Oct 16', weightKg: 50, reps: 6 },
-      { date: '2026-10-23', displayDatePt: '23 Out', displayDateEn: 'Oct 23', weightKg: 52.5, reps: 8 },
-    ],
-    barbell_row: [
-      { date: '2026-09-18', displayDatePt: '18 Set', displayDateEn: 'Sep 18', weightKg: 65, reps: 10 },
-      { date: '2026-09-25', displayDatePt: '25 Set', displayDateEn: 'Sep 25', weightKg: 70, reps: 8 },
-      { date: '2026-10-09', displayDatePt: '09 Out', displayDateEn: 'Oct 09', weightKg: 72.5, reps: 8 },
-      { date: '2026-10-23', displayDatePt: '23 Out', displayDateEn: 'Oct 23', weightKg: 77.5, reps: 8 },
-      { date: '2026-10-30', displayDatePt: '30 Out', displayDateEn: 'Oct 30', weightKg: 80, reps: 8 },
-    ],
-  };
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  // Build chart dataset with unit conversion and 1RM calculation
-  // Uses demo data when no real sessions exist; falls back to bench_press
-  const progressionData: ProgressionPoint[] = useMemo(() => {
-    const rawList = DEMO_OVERLOAD_HISTORY[selectedExercise] || DEMO_OVERLOAD_HISTORY['bench_press'];
-    return rawList.map((pt) => {
-      const displayWeight = formatWeight(pt.weightKg);
-      // Epley Formula: 1RM = Weight * (1 + Reps / 30)
-      const e1RM = Math.round(displayWeight * (1 + pt.reps / 30));
+  const progressionData = useMemo<ProgressionPoint[]>(() =>
+    buildRealExerciseProgression(realSessions, selectedExercise).map((point) => {
+      const displayWeight = formatWeight(point.weightKg);
       return {
-        date: pt.date,
-        displayDate: language === 'pt' ? pt.displayDatePt : pt.displayDateEn,
-        weightKg: pt.weightKg,
-        reps: pt.reps,
+        ...point,
         displayWeight,
-        estimated1RM: e1RM,
-        isDemo: realSessions.length === 0,
+        displayDate: new Date(`${point.date}T00:00:00Z`).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US', {
+          day: '2-digit',
+          month: 'short',
+          timeZone: 'UTC',
+        }),
+        estimated1RM: Math.round(displayWeight * (1 + point.reps / 30)),
       };
-    });
-  }, [selectedExercise, unit, language, realSessions.length]);
-
-  // Derived metrics
+    }), [realSessions, selectedExercise, language, unit]);
   const firstPoint = progressionData[0];
   const lastPoint = progressionData[progressionData.length - 1];
-  const maxPoint = progressionData.reduce((prev, curr) => (curr.displayWeight > prev.displayWeight ? curr : prev), progressionData[0]);
+  const maxPoint = progressionData.length
+    ? progressionData.reduce((peak, point) => point.displayWeight > peak.displayWeight ? point : peak)
+    : undefined;
+  const totalGain = progressionData.length > 1 && firstPoint && lastPoint
+    ? Math.round((lastPoint.displayWeight - firstPoint.displayWeight) * 10) / 10
+    : null;
+  const percentageGain = firstPoint && totalGain !== null && firstPoint.displayWeight > 0
+    ? Math.round((totalGain / firstPoint.displayWeight) * 100)
+    : null;
 
-  const totalGain = lastPoint && firstPoint ? Math.round((lastPoint.displayWeight - firstPoint.displayWeight) * 10) / 10 : 0;
-  const percentageGain = firstPoint && firstPoint.displayWeight > 0 ? Math.round((totalGain / firstPoint.displayWeight) * 100) : 0;
+  const weeklyData = useMemo(() => calculateRealWeeklyVolume(realSessions), [realSessions]);
+  const weeklyTotalKg = weeklyData.reduce((sum, day) => sum + day.volumeKg, 0);
+  const weeklySessionCount = weeklyData.reduce((sum, day) => sum + day.sessionCount, 0);
+  const maxWeeklyVol = Math.max(...weeklyData.map((day) => day.volumeKg), 0);
+  const weeklyChartData = weeklyData.map((day) => {
+    const date = new Date(`${day.date}T00:00:00Z`);
+    return {
+      ...day,
+      dayLabel: date.toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US', { weekday: 'short', timeZone: 'UTC' }),
+      dateLabel: date.toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US', {
+        day: '2-digit',
+        month: 'short',
+        timeZone: 'UTC',
+      }),
+    };
+  });
+  const lastMuscleStimulus = useMemo(
+    () => getLastRealMuscleStimulus(realSessions, selectedMuscleFocus),
+    [realSessions, selectedMuscleFocus],
+  );
+  const exercisePeaks = useMemo(() => buildRealExercisePeaks(realSessions), [realSessions]);
 
-  // Custom Dark Tooltip
-  const CustomOverloadTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data: ProgressionPoint = payload[0].payload;
-      return (
-        <div className="bg-[#0F172A] border border-[#CCFF00]/50 rounded-2xl p-3 shadow-2xl font-mono-numbers text-xs">
-          <div className="flex items-center justify-between gap-3 mb-1 border-b border-slate-800 pb-1">
-            <span className="text-slate-400 font-semibold">{data.displayDate}</span>
-            <span className="text-[10px] text-slate-500">{data.date}</span>
-          </div>
-          <div className="flex items-baseline gap-1 my-1">
-            <span className="text-slate-400">{language === 'pt' ? 'Carga Máxima:' : 'Peak Load:'}</span>
-            <span className="text-lg font-bold text-[#CCFF00]">
-              {data.displayWeight} {unit}
-            </span>
-            <span className="text-slate-400 text-[11px]">× {data.reps} {language === 'pt' ? 'repetições' : 'reps'}</span>
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1 border-t border-slate-800/80">
-            <span className="text-slate-400">{language === 'pt' ? '1RM Teórico:' : 'Est. 1RM:'}</span>
-            <span className="font-bold text-[#38BDF8]">
-              {data.estimated1RM} {unit}
-            </span>
-          </div>
+  const CustomOverloadTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: ProgressionPoint }[] }) => {
+    if (!active || !payload?.length) return null;
+    const point = payload[0].payload;
+    return (
+      <div className="bg-[#0F172A] border border-[#CCFF00]/50 rounded-2xl p-3 shadow-2xl font-mono-numbers text-xs">
+        <div className="flex items-center justify-between gap-3 mb-1 border-b border-slate-800 pb-1">
+          <span className="text-slate-400 font-semibold">{point.displayDate}</span>
+          <span className="text-[10px] text-slate-500">{point.date}</span>
         </div>
-      );
-    }
-    return null;
-  };
-
-  // Demo weekly volume data (last 7 days) – only shown when no real sessions exist
-  const DEMO_WEEKLY_DATA = [
-    { day: language === 'pt' ? 'Seg' : 'Mon', date: language === 'pt' ? '25 Out' : 'Oct 25', volumeKg: 9400, label: language === 'pt' ? 'Empurrar' : 'Push' },
-    { day: language === 'pt' ? 'Ter' : 'Tue', date: language === 'pt' ? '26 Out' : 'Oct 26', volumeKg: 11200, label: language === 'pt' ? 'Puxar' : 'Pull' },
-    { day: language === 'pt' ? 'Qua' : 'Wed', date: language === 'pt' ? '27 Out' : 'Oct 27', volumeKg: 0, label: language === 'pt' ? 'Descanso' : 'Rest' },
-    { day: language === 'pt' ? 'Qui' : 'Thu', date: language === 'pt' ? '28 Out' : 'Oct 28', volumeKg: 13500, label: language === 'pt' ? 'Pernas' : 'Legs' },
-    { day: language === 'pt' ? 'Sex' : 'Fri', date: language === 'pt' ? '29 Out' : 'Oct 29', volumeKg: 8700, label: language === 'pt' ? 'Superior' : 'Upper' },
-    { day: language === 'pt' ? 'Sáb' : 'Sat', date: language === 'pt' ? '30 Out' : 'Oct 30', volumeKg: 10400, label: language === 'pt' ? 'Empurrar B' : 'Push B' },
-    { day: language === 'pt' ? 'Dom' : 'Sun', date: language === 'pt' ? '31 Out' : 'Oct 31', volumeKg: 7800, label: language === 'pt' ? 'Abdômen' : 'Core' },
-  ];
-
-  const maxWeeklyVol = Math.max(...DEMO_WEEKLY_DATA.map(d => d.volumeKg), 14000);
-
-  // Demo muscle recovery status – only shown when no real sessions exist
-  const DEMO_MUSCLE_RECOVERY_STATUS: Record<MuscleGroup, { percent: number; hours: number; status: string }> = {
-    chest: { percent: 96, hours: 48, status: 'Optimal Readiness' },
-    back: { percent: 92, hours: 36, status: 'Optimal Readiness' },
-    shoulders: { percent: 88, hours: 30, status: 'Recovered' },
-    biceps: { percent: 94, hours: 42, status: 'Optimal Readiness' },
-    triceps: { percent: 98, hours: 54, status: 'Optimal Readiness' },
-    quads: { percent: 74, hours: 22, status: 'Rebuilding (Active Rest)' },
-    hamstrings: { percent: 70, hours: 20, status: 'Rebuilding (Active Rest)' },
-    calves: { percent: 95, hours: 48, status: 'Optimal Readiness' },
-    core: { percent: 90, hours: 28, status: 'Recovered' },
-    glutes: { percent: 78, hours: 24, status: 'Rebuilding' },
+        <div className="flex items-baseline gap-1 my-1">
+          <span className="text-slate-400">{language === 'pt' ? 'Carga registrada:' : 'Recorded load:'}</span>
+          <span className="text-lg font-bold text-[#CCFF00]">{point.displayWeight} {unit}</span>
+          <span className="text-slate-400 text-[11px]">× {point.reps} {language === 'pt' ? 'repetições' : 'reps'}</span>
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1 border-t border-slate-800/80">
+          <span className="text-slate-400">{language === 'pt' ? '1RM estimado:' : 'Est. 1RM:'}</span>
+          <span className="font-bold text-[#38BDF8]">{point.estimated1RM} {unit}</span>
+        </div>
+      </div>
+    );
   };
 
   const handleExportCSV = () => {
     soundManager.playTick();
     const headers = 'Date,Routine,Duration_Minutes,Total_Volume_Kg,Sets_Count,XP_Earned\n';
-    const rows = realSessions.map(s => 
-      `"${s.date}","${s.routineTitle}",${Math.round(s.durationSeconds / 60)},${s.totalVolumeKg},${s.setsCount},${s.xpEarned}`
+    const rows = realSessions.map((session) =>
+      `"${session.date}","${session.routineTitle}",${Math.round(session.durationSeconds / 60)},${session.totalVolumeKg},${session.setsCount},${session.xpEarned}`,
     ).join('\n');
     const blob = new Blob([headers + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `kinetic_volt_workout_log_${Date.now()}.csv`;
-    a.click();
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `kinetic_volt_workout_log_${Date.now()}.csv`;
+    anchor.click();
     URL.revokeObjectURL(url);
   };
 
   return (
     <div className="w-full max-w-6xl mx-auto pb-28 pt-2 px-3 sm:px-6 space-y-6">
-      
-      {/* Top Telemetry Summary Header */}
       <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-6 relative overflow-hidden shadow-2xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -241,7 +160,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               {language === 'pt' ? 'Painel de Recuperação & Tonalidade' : 'Recovery & Volume Analytics'}
             </h1>
           </div>
-
           <button
             type="button"
             onClick={handleExportCSV}
@@ -253,326 +171,207 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </div>
       </div>
 
-      {isDemoMode && (
-        <div className="flex items-center gap-2 mb-3 px-4 py-1 bg-[#FF6B00]/10 border border-[#FF6B00]/30 rounded-lg">
-          <Zap className="w-3 h-3 text-[#FF6B00]" />
-          <span className="text-[10px] font-mono-numbers font-bold text-[#FF6B00] uppercase">
-            {language === 'pt' ? 'DADOS DE DEMONSTRAÇÃO' : 'DEMO DATA'}
-          </span>
-        </div>
-      )}
-      {/* Interactive Progressive Overload Line Chart (Recharts) */}
-      <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-5 sm:p-6 relative overflow-hidden shadow-2xl">
+      <section className="bg-[#0F172A] border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4 text-[#CCFF00]" />
               <span className="text-xs uppercase font-mono-numbers tracking-widest text-[#CCFF00] font-bold">
-                {language === 'pt' ? 'SOBRECARGA PROGRESSIVA (RECHARTS)' : 'PROGRESSIVE OVERLOAD TELEMETRY'}
+                {language === 'pt' ? 'SOBRECARGA PROGRESSIVA' : 'PROGRESSIVE OVERLOAD'}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold font-display text-white">
-              {language === 'pt' ? 'Histórico de Carga Máxima por Exercício' : 'Peak Load Overload History'}
+              {language === 'pt' ? 'Histórico de Cargas Registradas' : 'Recorded Load History'}
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               {language === 'pt'
-                ? 'Monitore a progressão das maiores cargas levantadas e a curva de força máxima estimada (1RM).'
-                : 'Track the trajectory of peak weight lifted and theoretical maximal 1RM progression across sessions.'}
+                ? 'Exibe somente séries registradas em sessões reais; 1RM é uma estimativa calculada a partir delas.'
+                : 'Shows only sets recorded in real sessions; 1RM is an estimate calculated from those sets.'}
             </p>
           </div>
-
-          {/* Exercise Selector Buttons */}
           <div className="flex items-center gap-1.5 p-1 bg-[#1E293B] border border-slate-700/80 rounded-2xl overflow-x-auto w-full md:w-auto">
-            {trackableExercises.map((ex) => {
-              const isSelected = selectedExercise === ex.id;
-              const name = language === 'pt' ? ex.namePt : ex.nameEn;
-              return (
-                <button
-                  key={ex.id}
-                  type="button"
-                  onClick={() => {
-                    soundManager.playTick();
-                    setSelectedExercise(ex.id);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-mono-numbers font-semibold transition-all whitespace-nowrap ${
-                    isSelected
-                      ? 'bg-[#CCFF00] text-[#0A0F1D] shadow-glow-volt font-bold'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {name.split(' ')[0]} {name.split(' ')[1] || ''}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Highlight Overload Metrics Row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <div className="bg-[#1E293B] rounded-2xl p-3.5 border border-slate-800">
-            <span className="text-[10px] font-mono-numbers uppercase text-slate-400 block mb-1">
-              {language === 'pt' ? 'Carga Máxima Atual' : 'Current Peak Load'}
-            </span>
-            <div className="text-2xl font-extrabold font-mono-numbers text-[#CCFF00]">
-              {lastPoint?.displayWeight} <span className="text-xs text-slate-400">{unit}</span>
-            </div>
-            <span className="text-[10px] text-slate-500 font-mono-numbers mt-0.5 block">
-              {lastPoint?.displayDate} ({lastPoint?.reps} reps)
-            </span>
-          </div>
-
-          <div className="bg-[#1E293B] rounded-2xl p-3.5 border border-slate-800">
-            <span className="text-[10px] font-mono-numbers uppercase text-slate-400 block mb-1">
-              {language === 'pt' ? 'Carga Inicial (Baseline)' : 'Baseline Load'}
-            </span>
-            <div className="text-2xl font-extrabold font-mono-numbers text-white">
-              {firstPoint?.displayWeight} <span className="text-xs text-slate-400">{unit}</span>
-            </div>
-            <span className="text-[10px] text-slate-500 font-mono-numbers mt-0.5 block">
-              {firstPoint?.displayDate} ({firstPoint?.reps} reps)
-            </span>
-          </div>
-
-          <div className="bg-[#1E293B] rounded-2xl p-3.5 border border-slate-800">
-            <span className="text-[10px] font-mono-numbers uppercase text-slate-400 block mb-1">
-              {language === 'pt' ? 'Ganho de Sobrecarga' : 'Overload Delta'}
-            </span>
-            <div className="text-2xl font-extrabold font-mono-numbers text-[#CCFF00] flex items-center gap-1">
-              <ArrowUpRight className="w-5 h-5 text-[#CCFF00]" />
-              <span>+{totalGain} {unit}</span>
-            </div>
-            <span className="text-[10px] text-[#CCFF00] font-mono-numbers mt-0.5 block font-semibold">
-              +{percentageGain}% {language === 'pt' ? 'de evolução' : 'gain'}
-            </span>
-          </div>
-
-          <div className="bg-[#1E293B] rounded-2xl p-3.5 border border-slate-800">
-            <span className="text-[10px] font-mono-numbers uppercase text-slate-400 block mb-1">
-              {language === 'pt' ? '1RM Teórico Máximo' : 'Theoretical 1RM'}
-            </span>
-            <div className="text-2xl font-extrabold font-mono-numbers text-[#38BDF8]">
-              {maxPoint?.estimated1RM} <span className="text-xs text-slate-400">{unit}</span>
-            </div>
-            <span className="text-[10px] text-slate-500 font-mono-numbers mt-0.5 block">
-              {language === 'pt' ? 'Fórmula de Epley' : 'Epley Estimate'}
-            </span>
-          </div>
-        </div>
-
-        {/* Recharts Interactive LineChart Container */}
-        <div className="w-full h-72 sm:h-80 pt-2 pb-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={progressionData}
-              margin={{ top: 15, right: 15, left: -10, bottom: 5 }}
-            >
-              <CartesianGrid stroke="#1E293B" strokeDasharray="3 3" vertical={false} />
-              <XAxis 
-                dataKey="displayDate" 
-                stroke="#64748B" 
-                tick={{ fill: '#94A3B8', fontSize: 11, fontFamily: 'var(--font-mono)' }}
-                axisLine={{ stroke: '#334155' }}
-                tickLine={{ stroke: '#334155' }}
-              />
-              <YAxis 
-                stroke="#64748B" 
-                tick={{ fill: '#94A3B8', fontSize: 11, fontFamily: 'var(--font-mono)' }}
-                domain={['dataMin - 5', 'dataMax + 5']}
-                axisLine={{ stroke: '#334155' }}
-                tickLine={{ stroke: '#334155' }}
-                unit={` ${unit}`}
-              />
-              <Tooltip content={<CustomOverloadTooltip />} />
-              <ReferenceLine 
-                y={maxPoint.displayWeight} 
-                stroke="#FF6B00" 
-                strokeDasharray="4 4"
-                label={{ 
-                  value: language === 'pt' ? 'Recorde (PR)' : 'PR', 
-                  fill: '#FF6B00', 
-                  fontSize: 10, 
-                  position: 'insideTopRight',
-                  fontFamily: 'var(--font-mono)'
+            {trackableExercises.map((exercise) => (
+              <button
+                key={exercise.id}
+                type="button"
+                onClick={() => {
+                  soundManager.playTick();
+                  setSelectedExercise(exercise.id);
                 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="displayWeight" 
-                stroke="#CCFF00" 
-                strokeWidth={3} 
-                dot={{ fill: '#0A0F1D', stroke: '#CCFF00', strokeWidth: 2, r: 5 }}
-                activeDot={{ r: 8, fill: '#CCFF00', stroke: '#0A0F1D', strokeWidth: 2 }}
-                animationDuration={800}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between text-xs text-slate-400 font-mono-numbers pt-3 border-t border-slate-800">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-1 bg-[#CCFF00] rounded-full" />
-              <span>{language === 'pt' ? 'Carga Máxima Levantada' : 'Peak Weight Trajectory'}</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 border-t border-dashed border-[#FF6B00]" />
-              <span>{language === 'pt' ? 'Marca Recorde (PR)' : 'PR Reference Mark'}</span>
-            </span>
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono-numbers font-semibold transition-all whitespace-nowrap ${
+                  selectedExercise === exercise.id ? 'bg-[#CCFF00] text-[#0A0F1D] font-bold' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {(language === 'pt' ? exercise.namePt : exercise.nameEn).split(' ').slice(0, 2).join(' ')}
+              </button>
+            ))}
           </div>
-          <span className="text-[11px] text-slate-500">
-            {language === 'pt' ? 'Passe o cursor sobre os pontos para detalhes' : 'Hover data points for set rep telemetry'}
-          </span>
         </div>
-      </div>
 
-      {/* Galeria de Recordes Pessoais (PRs) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <Metric label={language === 'pt' ? 'Carga Máxima Atual' : 'Current Peak Load'}>
+            {lastPoint ? `${lastPoint.displayWeight} ${unit}` : '—'}
+            <MetricDetail>{lastPoint ? `${lastPoint.displayDate} (${lastPoint.reps} reps)` : unavailableText(language)}</MetricDetail>
+          </Metric>
+          <Metric label={language === 'pt' ? 'Carga Inicial' : 'Baseline Load'}>
+            {firstPoint ? `${firstPoint.displayWeight} ${unit}` : '—'}
+            <MetricDetail>{firstPoint?.displayDate || unavailableText(language)}</MetricDetail>
+          </Metric>
+          <Metric label={language === 'pt' ? 'Variação Registrada' : 'Recorded Change'} accent>
+            {totalGain === null ? '—' : `${totalGain > 0 ? '+' : ''}${totalGain} ${unit}`}
+            <MetricDetail>
+              {percentageGain === null
+                ? language === 'pt' ? 'São necessárias duas sessões' : 'Two sessions are required'
+                : `${percentageGain > 0 ? '+' : ''}${percentageGain}%`}
+            </MetricDetail>
+          </Metric>
+          <Metric label={language === 'pt' ? '1RM estimado' : 'Estimated 1RM'} blue>
+            {maxPoint ? `${maxPoint.estimated1RM} ${unit}` : '—'}
+            <MetricDetail>{language === 'pt' ? 'Fórmula de Epley' : 'Epley formula'}</MetricDetail>
+          </Metric>
+        </div>
+
+        {progressionData.length === 0 ? (
+          <EmptyState>
+            {language === 'pt'
+              ? 'Sem séries reais com carga e repetições registradas para este exercício.'
+              : 'No real sets with recorded load and reps for this exercise.'}
+          </EmptyState>
+        ) : (
+          <div className="w-full h-72 sm:h-80 pt-2 pb-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={progressionData} margin={{ top: 15, right: 15, left: -10, bottom: 5 }}>
+                <CartesianGrid stroke="#1E293B" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="displayDate" stroke="#64748B" tick={{ fill: '#94A3B8', fontSize: 11 }} />
+                <YAxis
+                  stroke="#64748B"
+                  tick={{ fill: '#94A3B8', fontSize: 11 }}
+                  domain={['dataMin - 5', 'dataMax + 5']}
+                  unit={` ${unit}`}
+                />
+                <Tooltip content={<CustomOverloadTooltip />} />
+                {maxPoint && (
+                  <ReferenceLine
+                    y={maxPoint.displayWeight}
+                    stroke="#FF6B00"
+                    strokeDasharray="4 4"
+                    label={{ value: language === 'pt' ? 'Maior carga registrada' : 'Recorded peak', fill: '#FF6B00', fontSize: 10 }}
+                  />
+                )}
+                <Line
+                  type="monotone"
+                  dataKey="displayWeight"
+                  stroke="#CCFF00"
+                  strokeWidth={3}
+                  dot={{ fill: '#0A0F1D', stroke: '#CCFF00', strokeWidth: 2, r: 5 }}
+                  activeDot={{ r: 8, fill: '#CCFF00', stroke: '#0A0F1D', strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </section>
+
       <PersonalRecordsGallery
-        onSelectExercise={(exId) => {
-          setSelectedExercise(exId);
-        }}
+        records={exercisePeaks}
+        onSelectExercise={setSelectedExercise}
         language={language}
         unit={unit}
       />
 
-      {/* Grid: Muscular Readiness Heatmap & Weekly Volume Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        
-        {/* Muscular Readiness Heatmap (5 cols) */}
-        {isDemoMode && (
-          <div className="flex items-center gap-2 mb-3 px-4 py-1 bg-[#FF6B00]/10 border border-[#FF6B00]/30 rounded-lg">
-            <Zap className="w-3 h-3 text-[#FF6B00]" />
-            <span className="text-[10px] font-mono-numbers font-bold text-[#FF6B00] uppercase">
-              {language === 'pt' ? 'DADOS DE DEMONSTRAÇÃO' : 'DEMO DATA'}
+        <section className="lg:col-span-5 bg-[#0F172A] border border-[#38BDF8]/40 rounded-3xl p-5 sm:p-6 shadow-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs uppercase font-mono-numbers tracking-widest text-[#38BDF8] font-bold flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4" />
+              {language === 'pt' ? 'Histórico de Estímulo Muscular' : 'Muscle Stimulus History'}
+            </span>
+            <span className="text-sm font-bold font-mono-numbers text-slate-400">
+              {language === 'pt' ? 'Indisponível' : 'Unavailable'}
             </span>
           </div>
-        )}
-        <div className="lg:col-span-5 bg-[#0F172A] border border-[#38BDF8]/40 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs uppercase font-mono-numbers tracking-widest text-[#38BDF8] font-bold flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-[#38BDF8]" />
-                {language === 'pt' ? 'Prontidão Fisiológica' : 'Physiological Readiness'}
-              </span>
-              <span className="text-xl font-extrabold font-mono-numbers text-[#38BDF8]">
-                94%
-              </span>
+          <p className="text-xs text-slate-300 mb-4 leading-relaxed">
+            {language === 'pt'
+              ? 'O histórico registra grupos musculares e datas, mas não permite estimar recuperação fisiológica.'
+              : 'Workout history records muscle groups and dates, but cannot estimate physiological recovery.'}
+          </p>
+          <MuscleDiagram
+            primaryMuscle={selectedMuscleFocus}
+            interactive
+            onSelectMuscle={(muscle) => {
+              soundManager.playTick();
+              setSelectedMuscleFocus(muscle);
+            }}
+            showLabels={false}
+            language={language}
+          />
+          <div className="mt-4 bg-[#1E293B] rounded-2xl p-4 border border-slate-800">
+            <div className="text-xs uppercase font-mono-numbers font-bold text-white mb-2">
+              {getMuscleLabel(selectedMuscleFocus, language)}
             </div>
-
-            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-              {language === 'pt'
-                ? 'Toque nas áreas musculares para checar tempo de recuperação e recomendação de estímulo.'
-                : 'Select muscle groups to inspect stimulus latency and supercompensation state.'}
+            <p className="text-xs text-slate-400 font-mono-numbers">
+              {lastMuscleStimulus
+                ? language === 'pt'
+                  ? `Último estímulo registrado em ${lastMuscleStimulus}. Percentual e estado de recuperação não podem ser determinados.`
+                  : `Last recorded stimulus: ${lastMuscleStimulus}. Recovery percentage and status cannot be determined.`
+                : language === 'pt'
+                  ? 'Não há dados reais suficientes para identificar um estímulo deste grupo muscular.'
+                  : 'There is not enough real data to identify a stimulus for this muscle group.'}
             </p>
-
-            <MuscleDiagram
-              primaryMuscle={selectedMuscleFocus}
-              secondaryMuscles={['triceps', 'shoulders']}
-              interactive={true}
-              onSelectMuscle={(m) => {
-                soundManager.playTick();
-                setSelectedMuscleFocus(m);
-              }}
-              showLabels={false}
-              language={language}
-            />
-
-            {/* Selected Muscle Deep-Dive */}
-            <div className="mt-4 bg-[#1E293B] rounded-2xl p-4 border border-slate-800">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs uppercase font-mono-numbers font-bold text-white">
-                  {getMuscleLabel(selectedMuscleFocus, language)}
-                </span>
-                <span className="text-xs font-mono-numbers font-bold text-[#38BDF8]">
-                  {DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus]?.percent || 90}% {language === 'pt' ? 'Recuperado' : 'Recovered'}
-                </span>
-              </div>
-              <div className="text-xs text-slate-400 font-mono-numbers">
-                {language === 'pt' ? 'Último estímulo:' : 'Last stimulus:'} {DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus]?.hours || 40} {language === 'pt' ? 'horas atrás · Estado:' : 'hours ago · Status:'} {language === 'pt'
-                  ? DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus]?.percent && DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus].percent < 80 ? 'Em recuperação' : 'Pronto para treinar'
-                  : DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus]?.status}
-              </div>
-            </div>
           </div>
-        </div>
+        </section>
 
-        {isDemoMode && (
-          <div className="flex items-center gap-2 mb-3 px-4 py-1 bg-[#FF6B00]/10 border border-[#FF6B00]/30 rounded-lg">
-            <Zap className="w-3 h-3 text-[#FF6B00]" />
-            <span className="text-[10px] font-mono-numbers font-bold text-[#FF6B00] uppercase">
-              {language === 'pt' ? 'DADOS DE DEMONSTRAÇÃO' : 'DEMO DATA'}
+        <section className="lg:col-span-7 bg-[#0F172A] border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl">
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <div>
+              <span className="text-xs uppercase font-mono-numbers tracking-widest text-[#CCFF00] font-bold block mb-1">
+                {language === 'pt' ? 'VOLUME DOS ÚLTIMOS 7 DIAS' : 'LAST 7 DAYS VOLUME'}
+              </span>
+              <h3 className="text-lg font-bold font-display text-white">
+                {formatWeight(weeklyTotalKg)} <span className="text-xs font-mono-numbers text-slate-400">{unit} {language === 'pt' ? 'no total' : 'total'}</span>
+              </h3>
+            </div>
+            <span className="px-2.5 py-1 rounded text-xs font-mono-numbers bg-[#1E293B] text-slate-300 border border-slate-700 font-bold">
+              {weeklySessionCount} {language === 'pt' ? 'treinos' : 'sessions'}
             </span>
           </div>
-        )}
-        {/* Weekly Tonnage / Volume Bar Chart (7 cols) */}
-        <div className="lg:col-span-7 bg-[#0F172A] border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <span className="text-xs uppercase font-mono-numbers tracking-widest text-[#CCFF00] font-bold block mb-1">
-                  {language === 'pt' ? 'VOLUME SEMANAL (TONELAGEM)' : 'WEEKLY TONNAGE TELEMETRY'}
-                </span>
-                <h3 className="text-lg font-bold font-display text-white">
-                  {language === 'pt' ? '61.000' : '61,000'} <span className="text-xs font-mono-numbers text-slate-400">{unit} {language === 'pt' ? 'no total' : 'Total'}</span>
-                </h3>
-              </div>
-              <span className="px-2.5 py-1 rounded text-xs font-mono-numbers bg-[#CCFF00]/15 text-[#CCFF00] border border-[#CCFF00]/40 font-bold">
-                {language === 'pt' ? '+14,2% vs. semana passada' : '+14.2% vs Last Wk'}
-              </span>
-            </div>
 
-            {/* Bar Chart Visualization */}
+          {weeklySessionCount === 0 ? (
+            <EmptyState>
+              {language === 'pt'
+                ? 'Nenhum treino real registrado nos últimos 7 dias.'
+                : 'No real workouts recorded in the last 7 days.'}
+            </EmptyState>
+          ) : (
             <div className="h-60 flex items-end justify-between gap-2 pt-6 pb-2 px-1 border-b border-slate-800">
-              {DEMO_WEEKLY_DATA.map((col, idx) => {
-                const heightPercent = col.volumeKg > 0 ? Math.max(12, Math.round((col.volumeKg / maxWeeklyVol) * 100)) : 4;
-                const isPeak = col.volumeKg === Math.max(...DEMO_WEEKLY_DATA.map(d => d.volumeKg));
-
+              {weeklyChartData.map((day) => {
+                const height = maxWeeklyVol > 0 ? (day.volumeKg / maxWeeklyVol) * 100 : 0;
                 return (
-                  <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
-                    {/* Tooltip on hover */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-mono-numbers bg-[#1E293B] text-white px-2 py-1 rounded border border-slate-700 whitespace-nowrap pointer-events-none mb-1">
-                      {formatWeight(col.volumeKg)} {unit}
+                  <div
+                    key={day.date}
+                    title={`${day.sessionCount} ${language === 'pt' ? 'treinos' : 'sessions'} · ${formatWeight(day.volumeKg)} ${unit}`}
+                    className="flex-1 flex flex-col items-center gap-2 h-full justify-end group"
+                  >
+                    <div className="text-[10px] font-mono-numbers text-slate-400 opacity-0 group-hover:opacity-100">
+                      {formatWeight(day.volumeKg)} {unit}
                     </div>
-
                     <div
-                      className={`w-full max-w-[36px] rounded-t-xl transition-all duration-500 ${
-                        col.volumeKg === 0
-                          ? 'bg-slate-800/50'
-                          : isPeak
-                          ? 'bg-[#CCFF00] shadow-glow-volt'
-                          : 'bg-gradient-to-t from-[#0F172A] to-[#38BDF8]'
-                      }`}
-                      style={{ height: `${heightPercent}%` }}
+                      className={`w-full max-w-[36px] rounded-t-xl transition-all ${day.volumeKg > 0 ? 'bg-gradient-to-t from-[#0F172A] to-[#38BDF8]' : 'bg-slate-800/50'}`}
+                      style={{ height: `${height}%` }}
                     />
                     <div className="text-center">
-                      <span className="text-xs font-mono-numbers font-bold text-slate-300 block">
-                        {col.day}
-                      </span>
-                      <span className="text-[9px] font-mono-numbers text-slate-500">
-                        {col.label}
-                      </span>
+                      <span className="text-xs font-mono-numbers font-bold text-slate-300 block">{day.dayLabel}</span>
+                      <span className="text-[9px] font-mono-numbers text-slate-500">{day.dateLabel}</span>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-400 font-mono-numbers">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-[#CCFF00]" /> {language === 'pt' ? 'Maior volume da semana' : 'Peak Hypertrophy Session'}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-[#38BDF8]" /> {language === 'pt' ? 'Volume padrão' : 'Standard Volume'}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-slate-800" /> {language === 'pt' ? 'Descanso' : 'Active Rest'}
-            </span>
-          </div>
-        </div>
+          )}
+        </section>
       </div>
 
-      {/* Completed Sessions Log Table */}
-      <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-6">
+      <section className="bg-[#0F172A] border border-slate-800 rounded-3xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#CCFF00]" />
@@ -581,62 +380,69 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </h3>
           </div>
           <span className="text-xs font-mono-numbers text-slate-400">
-            {realSessions.length} {language === 'pt' ? 'Sessões Registradas' : 'Total Sessions Logged'}
+            {realSessions.length} {language === 'pt' ? 'sessões' : 'sessions'}
           </span>
         </div>
-
         <div className="space-y-3">
-          {realSessions.map((sessionItem) => (
-            <div
-              key={sessionItem.id}
-              className="bg-[#1E293B] border border-slate-800/80 hover:border-slate-700 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
-            >
+          {realSessions.map((session) => (
+            <div key={session.id} className="bg-[#1E293B] border border-slate-800/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 text-xs font-mono-numbers text-slate-400 mb-1">
-                  <span>{sessionItem.date}</span>
+                  <span>{session.date}</span>
                   <span>·</span>
-                  <span className="text-[#38BDF8] flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {Math.round(sessionItem.durationSeconds / 60)} MIN
-                  </span>
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{Math.round(session.durationSeconds / 60)} MIN</span>
                   <span>·</span>
-                  <span className="text-[#8B5CF6]">+{sessionItem.xpEarned} XP</span>
+                  <span className="text-[#8B5CF6]">+{session.xpEarned} XP</span>
                 </div>
-                <h4 className="text-base font-bold text-white font-display">
-                  {sessionItem.routineTitle}
-                </h4>
+                <h4 className="text-base font-bold text-white font-display">{session.routineTitle}</h4>
               </div>
-
               <div className="flex items-center gap-4 sm:gap-6 font-mono-numbers">
                 <div>
-                  <span className="text-[10px] uppercase text-slate-400 block">
-                    {language === 'pt' ? 'Tonelagem' : 'Tonnage'}
-                  </span>
-                  <span className="text-base font-bold text-[#CCFF00]">
-                    {formatWeight(sessionItem.totalVolumeKg)} {unit}
-                  </span>
+                  <span className="text-[10px] uppercase text-slate-400 block">{language === 'pt' ? 'Tonelagem' : 'Tonnage'}</span>
+                  <span className="text-base font-bold text-[#CCFF00]">{formatWeight(session.totalVolumeKg)} {unit}</span>
                 </div>
-
                 <div>
-                  <span className="text-[10px] uppercase text-slate-400 block">
-                    {language === 'pt' ? 'Séries Concluídas' : 'Sets Done'}
-                  </span>
-                  <span className="text-base font-bold text-white">
-                    {sessionItem.setsCount}
-                  </span>
+                  <span className="text-[10px] uppercase text-slate-400 block">{language === 'pt' ? 'Séries concluídas' : 'Sets done'}</span>
+                  <span className="text-base font-bold text-white">{session.setsCount}</span>
                 </div>
-
-                {sessionItem.prsAchieved.length > 0 && (
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-mono-numbers font-bold bg-[#FF6B00]/15 text-[#FF6B00] border border-[#FF6B00]/40 flex items-center gap-1">
-                    <Award className="w-3 h-3" />
-                    {sessionItem.prsAchieved.length} PRs
-                  </span>
-                )}
               </div>
             </div>
           ))}
+          {realSessions.length === 0 && (
+            <EmptyState>
+              {language === 'pt' ? 'Nenhuma sessão real registrada.' : 'No real sessions have been recorded.'}
+            </EmptyState>
+          )}
         </div>
-      </div>
+      </section>
     </div>
   );
 };
+
+function unavailableText(language: 'pt' | 'en') {
+  return language === 'pt' ? 'Sem dados registrados' : 'No recorded data';
+}
+
+const Metric: React.FC<{
+  label: string;
+  accent?: boolean;
+  blue?: boolean;
+  children: React.ReactNode;
+}> = ({ label, accent, blue, children }) => (
+  <div className="bg-[#1E293B] rounded-2xl p-3.5 border border-slate-800">
+    <span className="text-[10px] font-mono-numbers uppercase text-slate-400 block mb-1">{label}</span>
+    <div className={`text-xl sm:text-2xl font-extrabold font-mono-numbers ${accent ? 'text-[#CCFF00]' : blue ? 'text-[#38BDF8]' : 'text-white'}`}>
+      {children}
+    </div>
+  </div>
+);
+
+const MetricDetail: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="text-[10px] text-slate-500 font-mono-numbers mt-1 block font-normal">{children}</span>
+);
+
+const EmptyState: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="rounded-2xl border border-slate-800 bg-[#1E293B] p-5 text-sm text-slate-400">
+    {children}
+  </div>
+);
