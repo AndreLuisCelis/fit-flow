@@ -44,6 +44,7 @@ interface ProgressionPoint {
   displayWeight: number;
   estimated1RM: number;
   note?: string;
+  isDemo?: boolean;
 }
 
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
@@ -55,6 +56,12 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [selectedExercise, setSelectedExercise] = useState<string>('bench_press');
 
   const realSessions = useMemo(() => filterRealSessions(completedSessions), [completedSessions]);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // DEMO MODE GUARD – Demo data only shown when user has no real sessions.
+  // This guarantees demo data is never presented as real user metrics.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const isDemoMode = realSessions.length === 0;
 
   const formatWeight = (kg: number) => {
     if (unit === 'lbs') return Math.round(kg * 2.20462);
@@ -70,8 +77,11 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     { id: 'barbell_row', namePt: 'Remada Curvada com Barra', nameEn: 'Bent-Over Barbell Row', muscle: 'Costas' },
   ];
 
-  // Base historical timeline for each exercise (6-week progressive overload data)
-  const baseOverloadHistory: Record<string, { date: string; displayDatePt: string; displayDateEn: string; weightKg: number; reps: number }[]> = {
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // DEMO / MOCK DATA – Only used when user has no real sessions logged.
+  // These are clearly isolated and never presented as real user metrics.
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const DEMO_OVERLOAD_HISTORY: Record<string, { date: string; displayDatePt: string; displayDateEn: string; weightKg: number; reps: number }[]> = {
     bench_press: [
       { date: '2026-09-18', displayDatePt: '18 Set', displayDateEn: 'Sep 18', weightKg: 75, reps: 8 },
       { date: '2026-09-25', displayDatePt: '25 Set', displayDateEn: 'Sep 25', weightKg: 77.5, reps: 8 },
@@ -113,10 +123,12 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       { date: '2026-10-30', displayDatePt: '30 Out', displayDateEn: 'Oct 30', weightKg: 80, reps: 8 },
     ],
   };
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   // Build chart dataset with unit conversion and 1RM calculation
+  // Uses demo data when no real sessions exist; falls back to bench_press
   const progressionData: ProgressionPoint[] = useMemo(() => {
-    const rawList = baseOverloadHistory[selectedExercise] || baseOverloadHistory['bench_press'];
+    const rawList = DEMO_OVERLOAD_HISTORY[selectedExercise] || DEMO_OVERLOAD_HISTORY['bench_press'];
     return rawList.map((pt) => {
       const displayWeight = formatWeight(pt.weightKg);
       // Epley Formula: 1RM = Weight * (1 + Reps / 30)
@@ -128,9 +140,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         reps: pt.reps,
         displayWeight,
         estimated1RM: e1RM,
+        isDemo: realSessions.length === 0,
       };
     });
-  }, [selectedExercise, unit, language]);
+  }, [selectedExercise, unit, language, realSessions.length]);
 
   // Derived metrics
   const firstPoint = progressionData[0];
@@ -169,8 +182,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     return null;
   };
 
-  // Mock weekly volume data (last 7 days)
-  const weeklyData = [
+  // Demo weekly volume data (last 7 days) – only shown when no real sessions exist
+  const DEMO_WEEKLY_DATA = [
     { day: language === 'pt' ? 'Seg' : 'Mon', date: language === 'pt' ? '25 Out' : 'Oct 25', volumeKg: 9400, label: language === 'pt' ? 'Empurrar' : 'Push' },
     { day: language === 'pt' ? 'Ter' : 'Tue', date: language === 'pt' ? '26 Out' : 'Oct 26', volumeKg: 11200, label: language === 'pt' ? 'Puxar' : 'Pull' },
     { day: language === 'pt' ? 'Qua' : 'Wed', date: language === 'pt' ? '27 Out' : 'Oct 27', volumeKg: 0, label: language === 'pt' ? 'Descanso' : 'Rest' },
@@ -180,10 +193,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     { day: language === 'pt' ? 'Dom' : 'Sun', date: language === 'pt' ? '31 Out' : 'Oct 31', volumeKg: 7800, label: language === 'pt' ? 'Abdômen' : 'Core' },
   ];
 
-  const maxWeeklyVol = Math.max(...weeklyData.map(d => d.volumeKg), 14000);
+  const maxWeeklyVol = Math.max(...DEMO_WEEKLY_DATA.map(d => d.volumeKg), 14000);
 
-  // Recovery breakdown by muscle group
-  const muscleRecoveryStatus: Record<MuscleGroup, { percent: number; hours: number; status: string }> = {
+  // Demo muscle recovery status – only shown when no real sessions exist
+  const DEMO_MUSCLE_RECOVERY_STATUS: Record<MuscleGroup, { percent: number; hours: number; status: string }> = {
     chest: { percent: 96, hours: 48, status: 'Optimal Readiness' },
     back: { percent: 92, hours: 36, status: 'Optimal Readiness' },
     shoulders: { percent: 88, hours: 30, status: 'Recovered' },
@@ -240,6 +253,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
         </div>
       </div>
 
+      {isDemoMode && (
+        <div className="flex items-center gap-2 mb-3 px-4 py-1 bg-[#FF6B00]/10 border border-[#FF6B00]/30 rounded-lg">
+          <Zap className="w-3 h-3 text-[#FF6B00]" />
+          <span className="text-[10px] font-mono-numbers font-bold text-[#FF6B00] uppercase">
+            {language === 'pt' ? 'DADOS DE DEMONSTRAÇÃO' : 'DEMO DATA'}
+          </span>
+        </div>
+      )}
       {/* Interactive Progressive Overload Line Chart (Recharts) */}
       <div className="bg-[#0F172A] border border-slate-800 rounded-3xl p-5 sm:p-6 relative overflow-hidden shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
@@ -417,6 +438,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
         {/* Muscular Readiness Heatmap (5 cols) */}
+        {isDemoMode && (
+          <div className="flex items-center gap-2 mb-3 px-4 py-1 bg-[#FF6B00]/10 border border-[#FF6B00]/30 rounded-lg">
+            <Zap className="w-3 h-3 text-[#FF6B00]" />
+            <span className="text-[10px] font-mono-numbers font-bold text-[#FF6B00] uppercase">
+              {language === 'pt' ? 'DADOS DE DEMONSTRAÇÃO' : 'DEMO DATA'}
+            </span>
+          </div>
+        )}
         <div className="lg:col-span-5 bg-[#0F172A] border border-[#38BDF8]/40 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -454,18 +483,26 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   {getMuscleLabel(selectedMuscleFocus, language)}
                 </span>
                 <span className="text-xs font-mono-numbers font-bold text-[#38BDF8]">
-                  {muscleRecoveryStatus[selectedMuscleFocus]?.percent || 90}% {language === 'pt' ? 'Recuperado' : 'Recovered'}
+                  {DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus]?.percent || 90}% {language === 'pt' ? 'Recuperado' : 'Recovered'}
                 </span>
               </div>
               <div className="text-xs text-slate-400 font-mono-numbers">
-                {language === 'pt' ? 'Último estímulo:' : 'Last stimulus:'} {muscleRecoveryStatus[selectedMuscleFocus]?.hours || 40} {language === 'pt' ? 'horas atrás · Estado:' : 'hours ago · Status:'} {language === 'pt'
-                  ? muscleRecoveryStatus[selectedMuscleFocus]?.percent && muscleRecoveryStatus[selectedMuscleFocus].percent < 80 ? 'Em recuperação' : 'Pronto para treinar'
-                  : muscleRecoveryStatus[selectedMuscleFocus]?.status}
+                {language === 'pt' ? 'Último estímulo:' : 'Last stimulus:'} {DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus]?.hours || 40} {language === 'pt' ? 'horas atrás · Estado:' : 'hours ago · Status:'} {language === 'pt'
+                  ? DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus]?.percent && DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus].percent < 80 ? 'Em recuperação' : 'Pronto para treinar'
+                  : DEMO_MUSCLE_RECOVERY_STATUS[selectedMuscleFocus]?.status}
               </div>
             </div>
           </div>
         </div>
 
+        {isDemoMode && (
+          <div className="flex items-center gap-2 mb-3 px-4 py-1 bg-[#FF6B00]/10 border border-[#FF6B00]/30 rounded-lg">
+            <Zap className="w-3 h-3 text-[#FF6B00]" />
+            <span className="text-[10px] font-mono-numbers font-bold text-[#FF6B00] uppercase">
+              {language === 'pt' ? 'DADOS DE DEMONSTRAÇÃO' : 'DEMO DATA'}
+            </span>
+          </div>
+        )}
         {/* Weekly Tonnage / Volume Bar Chart (7 cols) */}
         <div className="lg:col-span-7 bg-[#0F172A] border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col justify-between">
           <div>
@@ -485,9 +522,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
             {/* Bar Chart Visualization */}
             <div className="h-60 flex items-end justify-between gap-2 pt-6 pb-2 px-1 border-b border-slate-800">
-              {weeklyData.map((col, idx) => {
+              {DEMO_WEEKLY_DATA.map((col, idx) => {
                 const heightPercent = col.volumeKg > 0 ? Math.max(12, Math.round((col.volumeKg / maxWeeklyVol) * 100)) : 4;
-                const isPeak = col.volumeKg === Math.max(...weeklyData.map(d => d.volumeKg));
+                const isPeak = col.volumeKg === Math.max(...DEMO_WEEKLY_DATA.map(d => d.volumeKg));
 
                 return (
                   <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
