@@ -22,6 +22,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
   language = 'pt',
 }) => {
   const [view, setView] = useState<'anterior' | 'posterior'>('anterior');
+  const isPt = language !== 'en';
 
   const getMuscleColor = (muscle: MuscleGroup) => {
     if (primaryMuscle === muscle) {
@@ -62,7 +63,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          {language === 'pt' ? 'Frente' : 'Front'}
+          {isPt ? 'Frente' : 'Front'}
         </button>
         <button
           type="button"
@@ -73,7 +74,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          {language === 'pt' ? 'Costas' : 'Back'}
+          {isPt ? 'Costas' : 'Back'}
         </button>
       </div>
 
@@ -356,7 +357,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
             <div className="flex items-center gap-1.5 text-[#CCFF00]">
               <span className="w-2 h-2 rounded-full bg-[#CCFF00] shadow-glow-volt" />
               <span className="uppercase font-semibold tracking-wider">
-                {language === 'pt' ? 'Principal: ' : 'Target: '}{getMuscleLabel(primaryMuscle, language)}
+                {isPt ? 'Principal: ' : 'Target: '}{getMuscleLabel(primaryMuscle, language)}
               </span>
             </div>
           )}
@@ -364,7 +365,7 @@ export const MuscleDiagram: React.FC<MuscleDiagramProps> = ({
             <div className="flex items-center gap-1.5 text-[#38BDF8]">
               <span className="w-2 h-2 rounded-full bg-[#38BDF8]" />
               <span className="uppercase font-semibold tracking-wider">
-                {language === 'pt' ? 'Auxiliares: ' : 'Support: '}{secondaryMuscles.map(muscle => getMuscleLabel(muscle, language)).join(', ')}
+                {isPt ? 'Auxiliares: ' : 'Support: '}{secondaryMuscles.map(muscle => getMuscleLabel(muscle, language)).join(', ')}
               </span>
             </div>
           )}

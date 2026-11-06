@@ -8,23 +8,95 @@ export interface ExerciseGuide {
 export const EXERCISE_GUIDE: Record<string, ExerciseGuide> = {
   bench_press: {
     description: 'Barbell Hold: Keep shoulder blades retracted, grip slightly wider than shoulder width, and press vertically while driving feet firmly into the floor.',
-    descriptionPt: 'Seguração: Mantenha as escápulas retraídas, segure o barra ligeiramente acima da largura dos ombros e empurre verticalmente, firmando os pés no chão.',
+    descriptionPt: 'Execução: Mantenha as escápulas retraídas, segure a barra ligeiramente além da largura dos ombros e empurre verticalmente, firmando os pés no chão.',
   },
   incline_db_press: {
     description: 'Dumbbell Hold: Set the bench to 30°, lower the weights with a deep stretch at the bottom and press while leading with your elbows up to the shoulder plane.',
-    descriptionPt: 'Seguração: Eleve o banco para 30°, desça os halteres com alongamento profundo na parte inferior e aperte enquanto conduz os cotovelos até a altura dos ombros.',
+    descriptionPt: 'Execução: Ajuste o banco a 30°, desça os halteres com alongamento profundo na base e empurre conduzindo os cotovelos alinhados ao plano dos ombros.',
   },
   cable_fly: {
     description: 'Cable Hold: Keep a slight bend in your elbows, bring the handles together at chest height and squeeze your pecs for 1 second at peak contraction.',
-    descriptionPt: 'Cabos: Deixe leve dobra nos cotovelos, traga as alças juntas na altura do peito e contraia o peitoral por 1 segundo no ponto máximo da contração.',
+    descriptionPt: 'Execução: Mantenha leve flexão nos cotovelos, aproxime os pegadores na altura do peitoral e aperte por 1 segundo na contração máxima.',
   },
   overhead_press: {
     description: 'Barbell Hold: Lock your glutes and core, keep the bar close to your body and press vertically in a tight bar path without flaring the elbows outward.',
-    descriptionPt: 'Seguração: Contraia glúteos e abdômen, mantenha a barra próxima ao corpo e empurre verticalmente em uma trajetória firme, sem abrir os cotovelos para os lados.',
+    descriptionPt: 'Execução: Contraia glúteos e abdômen, mantenha a barra próxima ao corpo e empurre verticalmente em trajetória firme, sem abrir excessivamente os cotovelos.',
   },
   lateral_raise: {
     description: 'Dumbbell Hold: Keep a slight lean in your torso and lead with your elbows up to the shoulder plane, raising the weights only to shoulder height.',
-    descriptionPt: 'Halteres: Incline levemente o tronco e conduza o movimento com os cotovelos até a altura dos ombros, levantando os pesos somente até a altura dos ombros.',
+    descriptionPt: 'Execução: Incline levemente o tronco à frente e eleve os halteres conduzindo pelos cotovelos até a altura dos ombros.',
+  },
+  tricep_pushdown: {
+    description: 'Rope Pushdown: Flare rope outward at full extension for lateral head peak and keep elbows pinned to torso.',
+    descriptionPt: 'Execução: Mantenha os cotovelos colados ao tronco e afaste as pontas da corda na extensão total para contrair a cabeça lateral do tríceps.',
+  },
+  barbell_deadlift: {
+    description: 'Conventional Deadlift: Pull slack out of the bar, brace abdomen, and explode through hips keeping bar against shins.',
+    descriptionPt: 'Execução: Retire a folga da barra, trave o abdômen e suba empurrando o chão com o quadril, mantendo a barra rente às canelas.',
+  },
+  lat_pulldown: {
+    description: 'Lat Pulldown: Depress scapula first, pull bar down towards upper clavicle and squeeze lats.',
+    descriptionPt: 'Execução: Deprima as escápulas antes de puxar, traga a barra em direção à parte superior do peito e aperte as dorsais.',
+  },
+  barbell_row: {
+    description: 'Bent-Over Row: Torso locked at 45 degrees, pull bar towards lower ribcage while driving elbows back.',
+    descriptionPt: 'Execução: Mantenha o tronco firme a 45 graus e puxe a barra em direção às costelas inferiores direcionando os cotovelos para trás.',
+  },
+  barbell_curl: {
+    description: 'Barbell Curl: Keep elbows pinned to sides, curl bar in smooth arc with zero back momentum.',
+    descriptionPt: 'Execução: Firme os cotovelos ao lado das costelas e suba a barra em arco contínuo sem balançar o tronco.',
+  },
+  barbell_squat: {
+    description: 'Back Squat: Hit parallel depth or lower with knees tracking over toes, bracing core throughout.',
+    descriptionPt: 'Execução: Agache até as coxas ficarem paralelas ao chão com joelhos alinhados aos pés, mantendo o abdômen pressurizado.',
+  },
+  romanian_deadlift: {
+    description: 'RDL: Push hips backward with soft knee bend, lowering bar along thighs until massive hamstring stretch.',
+    descriptionPt: 'Execução: Empurre o quadril para trás com joelhos semi-flexionados, descendo a barra rente às pernas até sentir forte tensão nos posteriores.',
+  },
+  leg_press: {
+    description: 'Leg Press: Full range of motion without letting lower back round or lift off the seat pad.',
+    descriptionPt: 'Execução: Desça o carrinho com amplitude completa garantindo que a lombar permaneça 100% apoiada no encosto.',
+  },
+  standing_calf: {
+    description: 'Calf Raise: Pause 2 seconds at the bottom stretch and hold 1 second at full plantar flexion peak.',
+    descriptionPt: 'Execução: Alongue completamente a panturrilha na base com pausa de 2 segundos e contraia no topo por 1 segundo.',
+  },
+  hanging_leg_raise: {
+    description: 'Hanging Leg Raise: Curl pelvis upwards at the apex and avoid swinging body momentum.',
+    descriptionPt: 'Execução: Eleve as pernas realizando retroversão pélvica no ponto alto, controlando a descida sem balançar.',
+  },
+  push_up: {
+    description: 'Push-Up: Maintain rigid plank core, lower chest to floor with elbows at 45 degree angle.',
+    descriptionPt: 'Execução: Mantenha o corpo em prancha alinhada e desça o peito próximo ao chão com os cotovelos a 45 graus.',
+  },
+  bodyweight_squat: {
+    description: 'Air Squat: Chest tall, push knees outward over toes, and sink below parallel.',
+    descriptionPt: 'Execução: Mantenha o peito aberto, projete os joelhos para fora na linha dos pés e agache até a paralela.',
+  },
+  reverse_lunge: {
+    description: 'Reverse Lunge: Step back smoothly, keeping front knee stacked directly over ankle.',
+    descriptionPt: 'Execução: Dê o passo para trás de forma controlada, mantendo o joelho da frente alinhado sobre o tornozelo.',
+  },
+  glute_bridge: {
+    description: 'Glute Bridge: Drive through heels, keep ribs down, and squeeze glutes hard at the top.',
+    descriptionPt: 'Execução: Empurre o chão com os calcanhares, contraia os glúteos no topo sem hiperestender a lombar.',
+  },
+  prone_snow_angels: {
+    description: 'Prone Angels: Lie face down, keep chest lightly raised, and glide arms in a wide controlled arc.',
+    descriptionPt: 'Execução: Deitado de bruços, eleve levemente o peito e mova os braços em arco amplo e controlado ativando as costas.',
+  },
+  band_row: {
+    description: 'Band Row: Anchor band securely, pull elbows back along ribs and squeeze shoulder blades.',
+    descriptionPt: 'Execução: Prenda o elástico à frente e puxe os cotovelos em direção às costelas unindo as escápulas.',
+  },
+  band_chest_press: {
+    description: 'Band Press: Anchor band behind torso, press forward in a straight line without arching back.',
+    descriptionPt: 'Execução: Prenda o elástico atrás do corpo e empurre à frente em linha reta sem curvar a coluna.',
+  },
+  band_squat: {
+    description: 'Band Squat: Step on band loop, maintain tension at top and keep knees tracking over toes.',
+    descriptionPt: 'Execução: Pise sobre o elástico segurando as pontas nos ombros e agache mantendo a tensão firme durante todo o movimento.',
   },
 };
 
@@ -348,6 +420,7 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notes: 'Keep the chest lightly raised and move arms slowly.',
     notesPt: 'Eleve levemente o peito e mova os braços devagar.',
     tempo: '2-0-2-0',
+    guide: EXERCISE_GUIDE.prone_snow_angels,
   },
   band_row: {
     id: 'band_row',
@@ -363,6 +436,7 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notes: 'Anchor the band securely and pull elbows toward the ribs.',
     notesPt: 'Prenda o elástico com segurança e puxe os cotovelos em direção às costelas.',
     tempo: '2-1-1-1',
+    guide: EXERCISE_GUIDE.band_row,
   },
   band_chest_press: {
     id: 'band_chest_press',
@@ -378,6 +452,7 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notes: 'Secure the anchor behind you and press without arching the back.',
     notesPt: 'Prenda o elástico atrás de você e empurre sem arquear as costas.',
     tempo: '2-0-1-0',
+    guide: EXERCISE_GUIDE.band_chest_press,
   },
   band_squat: {
     id: 'band_squat',
@@ -393,6 +468,7 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notes: 'Maintain band tension and keep knees tracking over toes.',
     notesPt: 'Mantenha o elástico tensionado e alinhe os joelhos com os dedos dos pés.',
     tempo: '3-0-1-0',
+    guide: EXERCISE_GUIDE.band_squat,
   },
 };
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Exercise } from '../types/workout';
 import { ExerciseGuide } from '../data/presetRoutines';
-import { getMuscleLabel } from '../utils/localization';
+import { getMuscleLabel, getCategoryLabel } from '../utils/localization';
 import { Dumbbell } from 'lucide-react';
 import {
   motion,
@@ -33,7 +33,7 @@ export const ExerciseGuideCard: React.FC<ExerciseGuideCardProps> = ({
             {language === 'pt' ? exercise.namePt : exercise.name}
           </h3>
           <p className="text-[10px] font-mono-numbers text-[#38BDF8] uppercase tracking-wider">
-            {exercise.category}
+            {getCategoryLabel(exercise.category, language)}
           </p>
         </div>
       </div>

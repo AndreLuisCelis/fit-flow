@@ -20,7 +20,7 @@ import {
 import { ActiveWorkoutSession, SetEntry, MuscleGroup } from '../types/workout';
 import { ExerciseGuideCard } from './ExerciseGuideCard';
 import { MuscleDiagram } from './MuscleDiagram';
-import { getMuscleLabel } from '../utils/localization';
+import { getMuscleLabel, getExerciseNotes, getTempoLabel } from '../utils/localization';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -368,18 +368,25 @@ export const ActiveWorkoutView: React.FC<ActiveWorkoutViewProps> = ({
 
             {/* Coaching Guidance / Tempo */}
             <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
-              {exercise.notes && (
+              {(exercise.notes || exercise.notesPt) && (
                 <div className="flex items-start gap-2 text-xs text-slate-300">
                   <Info className="w-4 h-4 text-[#38BDF8] shrink-0 mt-0.5" />
-                  <span>{language === 'pt' ? exercise.notesPt || exercise.notes : exercise.notes}</span>
+                  <span>{getExerciseNotes(exercise, language)}</span>
                 </div>
               )}
               {exercise.tempo && (
                 <div className="flex items-center justify-between text-xs bg-[#0F172A] p-2.5 rounded-xl border border-slate-800 font-mono-numbers">
-                  <span className="text-slate-400 uppercase tracking-wider">
-                    {language === 'pt' ? 'Cadência / Tempo:' : 'Tempo Cadence:'}
-                  </span>
-                  <span className="text-[#38BDF8] font-bold">{exercise.tempo}</span>
+                  <div>
+                    <span className="text-slate-400 uppercase tracking-wider">
+                      {language === 'pt' ? 'Cadência / Tempo:' : 'Tempo Cadence:'}
+                    </span>
+                    {language === 'pt' && (
+                      <span className="block text-[10px] text-slate-500 font-sans normal-case">
+                        (descida · pausa · subida · pausa)
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[#38BDF8] font-bold">{getTempoLabel(exercise.tempo, language)}</span>
                 </div>
               )}
             </div>
