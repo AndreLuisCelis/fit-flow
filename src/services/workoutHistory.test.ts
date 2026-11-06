@@ -8,7 +8,11 @@ import {
   calculateRealTotalXp,
   extractRealPersonalRecords,
   calculateRealStreak,
+  calculateRealStreakHistory,
+  diffCalendarDays,
   extractRealFrequentExercises,
+  getLocalDateString,
+  updateStreakHistory,
   KNOWN_DEMO_SESSION_IDS,
   buildRealExercisePeaks,
   buildRealExerciseProgression,
@@ -597,4 +601,179 @@ test('Resumo persiste conquistas confirmadas e a galeria não infere PRs de sess
     ...history,
     prsAchieved: ['PR legado sem evidência'],
   }]), []);
+});
+
+test('Streak: dois ou mais treinos no mesmo dia contam apenas uma vez', () => {
+  const sessions = [
+    analyticsSession('sess-1', '2026-11-06', 1000),
+    analyticsSession('sess-2', '2026-11-06', 1500),
+    analyticsSession('sess-3', '2026-11-06', 800),
+  ];
+  assert.equal(calculateRealStreak(sessions, '2026-11-06'), 1);
+
+  const consecutiveWithMultiple = [
+    analyticsSession('sess-y1', '2026-11-05', 1000),
+    analyticsSession('sess-t1', '2026-11-06', 1500),
+    analyticsSession('sess-t2', '2026-11-06', 800),
+  ];
+  assert.equal(calculateRealStreak(consecutiveWithMultiple, '2026-11-06'), 2);
+});
+
+test('Streak: dias consecutivos incrementam a sequência corretamente', () => {
+  const sessions = [
+    analyticsSession('s1', '2026-11-02', 1000),
+    analyticsSession('s2', '2026-11-03', 1000),
+    analyticsSession('s3', '2026-11-04', 1000),
+    analyticsSession('s4', '2026-11-05', 1000),
+    analyticsSession('s5', '2026-11-06', 1000),
+  ];
+  assert.equal(calculateRealStreak(sessions, '2026-11-06'), 5);
+});
+
+test('Streak: lacuna de um dia reinicia a sequência', () => {
+  // Lacuna no dia 2026-11-05, treino hoje (2026-11-06)
+  const sessions = [
+    analyticsSession('s1', '2026-11-03', 1000),
+    analyticsSession('s2', '2026-11-04', 1000),
+    analyticsSession('s3', '2026-11-06', 1000),
+  ];
+  assert.equal(calculateRealStreak(sessions, '2026-11-06'), 1);
+});
+
+test('Streak: último treino ontem mantém a sequência ativa', () => {
+  const sessions = [
+    analyticsSession('s1', '2026-11-03', 1000),
+    analyticsSession('s2', '2026-11-04', 1000),
+    analyticsSession('s3', '2026-11-05', 1000),
+  ];
+  // Sem treino hoje (2026-11-06), último ontem (2026-11-05)
+  assert.equal(calculateRealStreak(sessions, '2026-11-06'), 3);
+});
+
+test('Streak: ausência de atividade hoje e ontem zera a sequência (dois ou mais dias)', () => {
+  const sessions = [
+    analyticsSession('s1', '2026-11-02', 1000),
+    analyticsSession('s2', '2026-11-03', 1000),
+    analyticsSession('s3', '2026-11-04', 1000),
+  ];
+  // Último treino em 2026-11-04 (2 dias atrás em relação a 2026-11-06)
+  assert.equal(calculateRealStreak(sessions, '2026-11-06'), 0);
+
+  // Último treino há 5 dias
+  assert.equal(calculateRealStreak([analyticsSession('s1', '2026-11-01', 1000)], '2026-11-06'), 0);
+});
+
+test('Streak: sessões demonstrativas são estritamente ignoradas', () => {
+  const demoOnly = [
+    { ...analyticsSession('sess-seed-1', '2026-11-06', 5000), isDemo: true },
+    { ...analyticsSession('sess-seed-2', '2026-11-05', 5000), isDemo: true },
+  ];
+  assert.equal(calculateRealStreak(demoOnly, '2026-11-06'), 0);
+
+  // Demo intercalado entre treinos reais não preenche lacuna
+  const mixedGap = [
+    analyticsSession('real-1', '2026-11-04', 1000),
+    { ...analyticsSession('fake-seed', '2026-11-05', 5000), isDemo: true },
+    analyticsSession('real-2', '2026-11-06', 1000),
+  ];
+  // 2026-11-05 só tem demo, então é uma lacuna real. Streak hoje deve ser 1.
+  assert.equal(calculateRealStreak(mixedGap, '2026-11-06'), 1);
+
+  // Sessões demo no mesmo dia do treino real não duplicam nem interferem
+  const realPlusDemoSameDay = [
+    analyticsSession('real-1', '2026-11-06', 1000),
+    { ...analyticsSession('fake-1', '2026-11-06', 5000), isDemo: true },
+  ];
+  assert.equal(calculateRealStreak(realPlusDemoSameDay, '2026-11-06'), 1);
+});
+
+test('Streak: virada de mês e ano são calculadas corretamente', () => {
+  // Virada de mês regular (31 de outubro -> 01 de novembro)
+  const monthTurn = [
+    analyticsSession('m1', '2026-10-30', 1000),
+    analyticsSession('m2', '2026-10-31', 1000),
+    analyticsSession('m3', '2026-11-01', 1000),
+  ];
+  assert.equal(calculateRealStreak(monthTurn, '2026-11-01'), 3);
+
+  // Virada de mês em ano bissexto (28 e 29 de fevereiro -> 01 de março de 2024)
+  const leapYearTurn = [
+    analyticsSession('l1', '2024-02-28', 1000),
+    analyticsSession('l2', '2024-02-29', 1000),
+    analyticsSession('l3', '2024-03-01', 1000),
+  ];
+  assert.equal(calculateRealStreak(leapYearTurn, '2024-03-01'), 3);
+
+  // Virada de mês em ano não-bissexto (28 de fevereiro -> 01 de março de 2023)
+  const nonLeapYearTurn = [
+    analyticsSession('nl1', '2023-02-28', 1000),
+    analyticsSession('nl2', '2023-03-01', 1000),
+  ];
+  assert.equal(calculateRealStreak(nonLeapYearTurn, '2023-03-01'), 2);
+
+  // Virada de ano (30 e 31 de dezembro de 2025 -> 01 de janeiro de 2026)
+  const yearTurn = [
+    analyticsSession('y1', '2025-12-30', 1000),
+    analyticsSession('y2', '2025-12-31', 1000),
+    analyticsSession('y3', '2026-01-01', 1000),
+  ];
+  assert.equal(calculateRealStreak(yearTurn, '2026-01-01'), 3);
+});
+
+test('Streak: datas locais e limites de fuso horário', () => {
+  // getLocalDateString formata datas locais com zero-padding
+  const sampleDate = new Date(2026, 4, 3, 23, 59, 59); // 03 de maio de 2026 às 23:59:59 local
+  assert.equal(getLocalDateString(sampleDate), '2026-05-03');
+
+  const startOfDay = new Date(2026, 0, 1, 0, 0, 1); // 01 de janeiro de 2026 às 00:00:01 local
+  assert.equal(getLocalDateString(startOfDay), '2026-01-01');
+
+  // String YYYY-MM-DD já existente é preservada sem conversões indevidas
+  assert.equal(getLocalDateString('2026-11-06'), '2026-11-06');
+
+  // Diferenças de dias são consistentes e independentes de fuso
+  assert.equal(diffCalendarDays('2026-11-06', '2026-11-05'), 1);
+  assert.equal(diffCalendarDays('2026-11-06', '2026-11-06'), 0);
+  assert.equal(diffCalendarDays('2026-11-01', '2026-10-31'), 1);
+  assert.equal(diffCalendarDays('2027-01-01', '2026-12-31'), 1);
+});
+
+test('Streak: atualização de streakHistory por dia do calendário sem duplicar o dia', () => {
+  const initialHistory = [false, true, true, false, true, true, false];
+
+  // 1. Treino no mesmo dia (dia já concluído hoje): não deve deslocar nem duplicar
+  const sameDayUpdate = updateStreakHistory(initialHistory, '2026-11-06', '2026-11-06');
+  assert.deepEqual(sameDayUpdate, [false, true, true, false, true, true, true]);
+  assert.equal(sameDayUpdate.length, 7);
+
+  // Outro treino adicional no mesmo dia: continua idêntico
+  const sameDaySecondUpdate = updateStreakHistory(sameDayUpdate, '2026-11-06', '2026-11-06');
+  assert.deepEqual(sameDaySecondUpdate, [false, true, true, false, true, true, true]);
+
+  // 2. Treino no dia seguinte consecutivo: desloca 1 dia para a esquerda
+  const nextDayUpdate = updateStreakHistory(sameDayUpdate, '2026-11-06', '2026-11-07');
+  assert.deepEqual(nextDayUpdate, [true, true, false, true, true, true, true]);
+  assert.equal(nextDayUpdate.length, 7);
+
+  // 3. Treino após lacuna de 1 dia (2 dias de diferença): desloca 2 posições, inserindo false no dia pulado
+  const gapUpdate = updateStreakHistory(sameDayUpdate, '2026-11-06', '2026-11-08');
+  assert.deepEqual(gapUpdate, [true, false, true, true, true, false, true]);
+  assert.equal(gapUpdate.length, 7);
+
+  // 4. Treino após mais de 7 dias: janela reiniciada com apenas hoje true
+  const longGapUpdate = updateStreakHistory(sameDayUpdate, '2026-10-01', '2026-11-06');
+  assert.deepEqual(longGapUpdate, [false, false, false, false, false, false, true]);
+
+  // 5. calculateRealStreakHistory a partir de sessões reais
+  const sessions = [
+    analyticsSession('s1', '2026-11-05', 1000),
+    analyticsSession('s2', '2026-11-06', 1500),
+    analyticsSession('s3', '2026-11-06', 1200), // Segundo treino hoje
+    { ...analyticsSession('fake', '2026-11-04', 5000), isDemo: true }, // Demo ignorado
+  ];
+  const calculatedHistory = calculateRealStreakHistory(sessions, '2026-11-06');
+  // Janela de 7 dias terminando em 2026-11-06:
+  // [2026-10-31, 2026-11-01, 2026-11-02, 2026-11-03, 2026-11-04, 2026-11-05, 2026-11-06]
+  assert.deepEqual(calculatedHistory, [false, false, false, false, false, true, true]);
+  assert.equal(calculatedHistory.length, 7);
 });
