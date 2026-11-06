@@ -23,6 +23,7 @@ import { userProfileStore, UserProfileReadResult } from './services/userProfile'
 import { UserProfile } from './types/profile';
 import { soundManager } from './utils/audio';
 import { rankCompatibleRoutines } from './utils/workoutPersonalization';
+import { addExperience, reconcileUserStats } from './services/userProgression';
 import {
   calculatePersonalRecordAchievements,
   calculateRealStreak,
@@ -91,7 +92,7 @@ export default function App() {
   const [userStats, setUserStats] = useState<UserStats>(() => {
     try {
       const saved = localStorage.getItem('fitflow_user_stats');
-      return saved ? JSON.parse(saved) : INITIAL_USER_STATS;
+      return reconcileUserStats(saved, INITIAL_USER_STATS);
     } catch {
       return INITIAL_USER_STATS;
     }
@@ -361,14 +362,7 @@ export default function App() {
     };
 
     // Update User Stats
-    const newXP = userStats.currentXP + xpEarned;
-    let newLevel = userStats.level;
-    let newTargetXP = userStats.xpForNextLevel;
-
-    if (newXP >= userStats.xpForNextLevel) {
-      newLevel += 1;
-      newTargetXP += 2000;
-    }
+    const progression = addExperience(userStats, xpEarned);
 
     const nextSessions = [summary, ...completedSessions];
     const newStreakDays = calculateRealStreak(nextSessions, today);
@@ -380,9 +374,9 @@ export default function App() {
 
     const updatedStats: UserStats = {
       ...userStats,
-      level: newLevel,
-      currentXP: newXP,
-      xpForNextLevel: newTargetXP,
+      level: progression.level,
+      currentXP: progression.currentXP,
+      xpForNextLevel: progression.xpForNextLevel,
       streakDays: newStreakDays,
       lastWorkoutDate: today,
       totalWorkoutsCompleted: userStats.totalWorkoutsCompleted + 1,
@@ -423,18 +417,12 @@ export default function App() {
   // Claim Daily Volume Goal Reward (+XP)
   const handleClaimGoalReward = (bonusXP: number) => {
     setUserStats(prev => {
-      const newXP = prev.currentXP + bonusXP;
-      let newLevel = prev.level;
-      let newTargetXP = prev.xpForNextLevel;
-      if (newXP >= prev.xpForNextLevel) {
-        newLevel += 1;
-        newTargetXP += 2000;
-      }
+      const progression = addExperience(prev, bonusXP);
       return {
         ...prev,
-        level: newLevel,
-        currentXP: newXP,
-        xpForNextLevel: newTargetXP,
+        level: progression.level,
+        currentXP: progression.currentXP,
+        xpForNextLevel: progression.xpForNextLevel,
       };
     });
   };
