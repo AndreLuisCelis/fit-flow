@@ -6,7 +6,9 @@ import {
   UserStats, 
   MasteryBadge,
   CompletedExerciseSummary,
+  PersistedRestTimerState,
 } from './types/workout';
+import { activeWorkoutManager, reconstructRestTimer } from './services/activeWorkoutPersistence';
 import { PRESET_ROUTINES, EXERCISE_DATABASE, INITIAL_USER_STATS, INITIAL_BADGES } from './data/presetRoutines';
 import { Navbar } from './components/Navbar';
 import { ActiveWorkoutView } from './components/ActiveWorkoutView';
@@ -107,12 +109,43 @@ export default function App() {
     }
   });
 
-  // IndexedDB: Histórico de Treinos
+  // IndexedDB: Histórico de Treinos e Sessão Ativa
   const [completedSessions, setCompletedSessions] = useState<CompletedSessionSummary[]>([]);
+  const isFinishingWorkoutRef = useRef<boolean>(false);
 
-  // Load IndexedDB History on mount
+  // Active Workout Session
+  const [activeSession, setActiveSession] = useState<ActiveWorkoutSession | null>(null);
+
+  // Rest Timer State
+  const [restTimerOpen, setRestTimerOpen] = useState<boolean>(false);
+  const [restTimeLeft, setRestTimeLeft] = useState<number>(75);
+  const [restTotalTime, setRestTotalTime] = useState<number>(75);
+  const [restTimerRunning, setRestTimerRunning] = useState<boolean>(false);
+  const [restNextExName, setRestNextExName] = useState<string | undefined>(undefined);
+  const [restNextSetNum, setRestNextSetNum] = useState<number | undefined>(undefined);
+  const [restTimerMinimized, setRestTimerMinimized] = useState<boolean>(false);
+  const restTimerStateRef = useRef<PersistedRestTimerState | null>(null);
+
   useEffect(() => {
-    async function loadHistory() {
+    if (!restTimerOpen) {
+      restTimerStateRef.current = null;
+    } else {
+      restTimerStateRef.current = {
+        isOpen: restTimerOpen,
+        timeLeft: restTimeLeft,
+        totalTime: restTotalTime,
+        isRunning: restTimerRunning,
+        nextExerciseName: restNextExName,
+        nextSetNumber: restNextSetNum,
+        isMinimized: restTimerMinimized,
+        savedAt: Date.now(),
+      };
+    }
+  }, [restTimerOpen, restTimeLeft, restTotalTime, restTimerRunning, restNextExName, restNextSetNum, restTimerMinimized]);
+
+  // Load IndexedDB History and Restore Active Workout on mount
+  useEffect(() => {
+    async function initAppStorage() {
       try {
         const hist = await fitFlowDB.getHistory();
         setCompletedSessions(hist);
@@ -131,21 +164,41 @@ export default function App() {
       } catch (e) {
         console.warn('Could not load history from IndexedDB:', e);
       }
+
+      try {
+        const persisted = await activeWorkoutManager.restore();
+        if (persisted && persisted.session && !persisted.session.isFinished) {
+          setActiveSession(persisted.session);
+          setCurrentTab('workout');
+
+          if (persisted.restTimer) {
+            const restoredTimer = reconstructRestTimer(persisted.restTimer);
+            if (restoredTimer && restoredTimer.isOpen && restoredTimer.timeLeft > 0) {
+              setRestTimerOpen(true);
+              setRestTimeLeft(restoredTimer.timeLeft);
+              setRestTotalTime(restoredTimer.totalTime);
+              setRestTimerRunning(restoredTimer.isRunning);
+              setRestNextExName(restoredTimer.nextExerciseName);
+              setRestNextSetNum(restoredTimer.nextSetNumber);
+              setRestTimerMinimized(restoredTimer.isMinimized);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Could not restore active workout from IndexedDB:', e);
+      } finally {
+        activeWorkoutManager.setHydrated(true);
+      }
     }
-    loadHistory();
+    initAppStorage();
   }, []);
 
-  // Active Workout Session
-  const [activeSession, setActiveSession] = useState<ActiveWorkoutSession | null>(null);
-
-  // Rest Timer State
-  const [restTimerOpen, setRestTimerOpen] = useState<boolean>(false);
-  const [restTimeLeft, setRestTimeLeft] = useState<number>(75);
-  const [restTotalTime, setRestTotalTime] = useState<number>(75);
-  const [restTimerRunning, setRestTimerRunning] = useState<boolean>(false);
-  const [restNextExName, setRestNextExName] = useState<string | undefined>(undefined);
-  const [restNextSetNum, setRestNextSetNum] = useState<number | undefined>(undefined);
-  const [restTimerMinimized, setRestTimerMinimized] = useState<boolean>(false);
+  // Persist Active Workout Session whenever it changes (once hydrated)
+  useEffect(() => {
+    if (activeSession && !activeSession.isFinished && activeWorkoutManager.getHydrated()) {
+      activeWorkoutManager.scheduleSave(activeSession, restTimerStateRef.current);
+    }
+  }, [activeSession]);
 
   // Workout Completion Modal
   const [showSummaryModal, setShowSummaryModal] = useState<boolean>(false);
@@ -301,11 +354,24 @@ export default function App() {
     setRestTimerRunning(true);
     setRestTimerOpen(true);
     setRestTimerMinimized(false);
+    if (activeSession) {
+      activeWorkoutManager.scheduleSave(activeSession, {
+        isOpen: true,
+        timeLeft: seconds,
+        totalTime: seconds,
+        isRunning: true,
+        nextExerciseName: nextExName,
+        nextSetNumber: nextSetNum,
+        isMinimized: false,
+        savedAt: Date.now(),
+      });
+    }
   };
 
   // Complete & Finish Active Workout
-  const handleFinishWorkout = () => {
-    if (!activeSession) return;
+  const handleFinishWorkout = async () => {
+    if (!activeSession || isFinishingWorkoutRef.current) return;
+    isFinishingWorkoutRef.current = true;
     soundManager.playLevelUp();
 
     const durationSec = Math.max(60, Math.round((Date.now() - activeSession.startTime) / 1000));
@@ -384,24 +450,37 @@ export default function App() {
       streakHistory: newStreakHistory,
     };
 
-    setUserStats(updatedStats);
-    setCompletedSessions(prev => [summary, ...prev]);
-    setLastSummary(summary);
-    setShowSummaryModal(true);
-    setActiveSession(null);
-    setRestTimerOpen(false);
-
-    // Save to IndexedDB (Offline-first persistence)
-    fitFlowDB.addHistory(summary).catch((err) => {
-      console.warn('Failed to save workout to IndexedDB:', err);
-    });
+    // Transactional save to IndexedDB: atomic history insertion + active workout deletion
+    try {
+      await fitFlowDB.completeWorkoutTransaction(summary);
+      await activeWorkoutManager.clear();
+    } catch (err) {
+      console.warn('Failed to complete workout transaction in IndexedDB, attempting fallback:', err);
+      try {
+        await fitFlowDB.addHistory(summary);
+        await activeWorkoutManager.clear();
+      } catch (fallbackErr) {
+        console.warn('Fallback persistence also failed:', fallbackErr);
+      }
+    } finally {
+      setUserStats(updatedStats);
+      setCompletedSessions(prev => [summary, ...prev]);
+      setLastSummary(summary);
+      setShowSummaryModal(true);
+      setActiveSession(null);
+      setRestTimerOpen(false);
+      setRestTimerRunning(false);
+      isFinishingWorkoutRef.current = false;
+    }
   };
 
   // Discard / Cancel Workout
-  const handleCancelWorkout = () => {
+  const handleCancelWorkout = async () => {
     if (confirm(language === 'pt' ? 'Deseja realmente cancelar este treino?' : 'Discard current session progress?')) {
       setActiveSession(null);
       setRestTimerOpen(false);
+      setRestTimerRunning(false);
+      await activeWorkoutManager.clear();
       setCurrentTab('routines');
     }
   };
@@ -550,18 +629,78 @@ export default function App() {
         timeLeft={restTimeLeft}
         totalTime={restTotalTime}
         isRunning={restTimerRunning}
-        onClose={() => setRestTimerOpen(false)}
-        onTogglePlay={() => setRestTimerRunning(r => !r)}
-        onAddSeconds={(sec) => setRestTimeLeft(t => Math.max(0, t + sec))}
+        onClose={() => {
+          setRestTimerOpen(false);
+          setRestTimerRunning(false);
+          if (activeSession) {
+            activeWorkoutManager.scheduleSave(activeSession, null);
+          }
+        }}
+        onTogglePlay={() => {
+          setRestTimerRunning(r => {
+            const next = !r;
+            if (activeSession) {
+              activeWorkoutManager.scheduleSave(activeSession, {
+                isOpen: restTimerOpen,
+                timeLeft: restTimeLeft,
+                totalTime: restTotalTime,
+                isRunning: next,
+                nextExerciseName: restNextExName,
+                nextSetNumber: restNextSetNum,
+                isMinimized: restTimerMinimized,
+                savedAt: Date.now(),
+              });
+            }
+            return next;
+          });
+        }}
+        onAddSeconds={(sec) => {
+          setRestTimeLeft(t => {
+            const next = Math.max(0, t + sec);
+            if (activeSession) {
+              activeWorkoutManager.scheduleSave(activeSession, {
+                isOpen: restTimerOpen,
+                timeLeft: next,
+                totalTime: restTotalTime,
+                isRunning: restTimerRunning,
+                nextExerciseName: restNextExName,
+                nextSetNumber: restNextSetNum,
+                isMinimized: restTimerMinimized,
+                savedAt: Date.now(),
+              });
+            }
+            return next;
+          });
+        }}
         onSkip={() => {
           soundManager.playTick();
           setRestTimerOpen(false);
           setRestTimerRunning(false);
+          if (activeSession) {
+            activeWorkoutManager.scheduleSave(activeSession, null);
+          }
         }}
         nextExerciseName={restNextExName}
         nextSetNumber={restNextSetNum}
         isMinimized={restTimerMinimized}
-        onToggleMinimize={() => setRestTimerMinimized(m => !m)}
+        onToggleMinimize={() => {
+          setRestTimerMinimized(m => {
+            const next = !m;
+            if (activeSession) {
+              activeWorkoutManager.scheduleSave(activeSession, {
+                isOpen: restTimerOpen,
+                timeLeft: restTimeLeft,
+                totalTime: restTotalTime,
+                isRunning: restTimerRunning,
+                nextExerciseName: restNextExName,
+                nextSetNumber: restNextSetNum,
+                isMinimized: next,
+                savedAt: Date.now(),
+              });
+            }
+            return next;
+          });
+        }}
         language={language}
       />
 

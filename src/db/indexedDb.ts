@@ -1,9 +1,16 @@
-import { WorkoutRoutine, Exercise, CompletedSessionSummary } from '../types/workout';
+import {
+  WorkoutRoutine,
+  Exercise,
+  CompletedSessionSummary,
+  ActiveWorkoutSession,
+  PersistedRestTimerState,
+  PersistedActiveWorkout,
+} from '../types/workout';
 import { PRESET_ROUTINES, EXERCISE_DATABASE } from '../data/presetRoutines';
 import { isDemoSession, filterRealSessions } from '../services/workoutHistory';
 
 const DB_NAME = 'FitFlowDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export class FitFlowDatabase {
   private dbPromise: Promise<IDBDatabase> | null = null;
@@ -51,6 +58,11 @@ export class FitFlowDatabase {
         if (!db.objectStoreNames.contains('history')) {
           const historyStore = db.createObjectStore('history', { keyPath: 'id' });
           historyStore.createIndex('by_date', 'date');
+        }
+
+        // Store 4: Active Workout / Treino em Andamento
+        if (!db.objectStoreNames.contains('active_workout')) {
+          db.createObjectStore('active_workout', { keyPath: 'id' });
         }
       };
 
@@ -281,6 +293,104 @@ export class FitFlowDatabase {
       const request = store.clear();
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
+    });
+  }
+
+  // --- Active Workout (Treino Ativo em Andamento) ---
+  public async saveActiveWorkout(
+    session: ActiveWorkoutSession,
+    restTimer?: PersistedRestTimerState | null,
+  ): Promise<void> {
+    if (!session || session.isFinished) {
+      return;
+    }
+
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('active_workout', 'readwrite');
+        const store = tx.objectStore('active_workout');
+        const record: PersistedActiveWorkout = {
+          id: 'active',
+          session: JSON.parse(JSON.stringify(session)),
+          restTimer: restTimer ? JSON.parse(JSON.stringify(restTimer)) : null,
+          updatedAt: Date.now(),
+        };
+        const request = store.put(record);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+        tx.onerror = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async getActiveWorkout(): Promise<PersistedActiveWorkout | null> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('active_workout', 'readonly');
+        const store = tx.objectStore('active_workout');
+        const request = store.get('active');
+        request.onsuccess = () => {
+          const result = request.result as PersistedActiveWorkout | undefined;
+          if (!result || !result.session || result.session.isFinished) {
+            resolve(null);
+            return;
+          }
+          resolve(result);
+        };
+        request.onerror = () => reject(request.error);
+        tx.onerror = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  public async clearActiveWorkout(): Promise<void> {
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('active_workout', 'readwrite');
+        const store = tx.objectStore('active_workout');
+        const request = store.delete('active');
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+        tx.onerror = () => reject(tx.error);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  /**
+   * Atomically saves the completed session in history and deletes the active workout
+   * in a single readwrite transaction, preventing double submissions or orphan states.
+   */
+  public async completeWorkoutTransaction(session: CompletedSessionSummary): Promise<void> {
+    if (isDemoSession(session)) {
+      console.warn('[FitFlowDB] Tentativa de salvar sessão demonstrativa no histórico de produção bloqueada.');
+      return;
+    }
+
+    const db = await this.openDB();
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(['history', 'active_workout'], 'readwrite');
+        const historyStore = tx.objectStore('history');
+        const activeStore = tx.objectStore('active_workout');
+
+        historyStore.put(session);
+        activeStore.delete('active');
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(new Error('Transaction aborted'));
+      } catch (err) {
+        reject(err);
+      }
     });
   }
 }
