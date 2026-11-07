@@ -2,6 +2,8 @@ import { UserStats } from '../types/workout';
 import { INITIAL_USER_STATS } from '../data/presetRoutines';
 
 export const XP_PER_LEVEL = 2000;
+export const MAX_SAFE_XP = Number.MAX_SAFE_INTEGER;
+export const MAX_SAFE_LEVEL = Math.floor((Number.MAX_SAFE_INTEGER - 8000) / XP_PER_LEVEL) + 14;
 
 export interface ProgressionResult {
   level: number;
@@ -11,47 +13,89 @@ export interface ProgressionResult {
 }
 
 /**
- * Calculates level progression for a given amount of XP gained.
+ * Sanitizes any numeric candidate ensuring the result is a safe integer within [min, max].
+ * - If candidate is not a finite number or is NaN, returns fallback.
+ * - If candidate is below min, returns fallback.
+ * - If candidate is finite above max, clamps to max.
+ */
+export function toSafeIntegerInRange(
+  val: unknown,
+  fallback: number,
+  min: number,
+  max: number = Number.MAX_SAFE_INTEGER,
+): number {
+  if (typeof val !== 'number' || Number.isNaN(val) || !Number.isFinite(val)) {
+    return fallback;
+  }
+  if (val < min) {
+    return fallback;
+  }
+  if (val > max) {
+    return max;
+  }
+  const floored = Math.floor(val);
+  return Number.isSafeInteger(floored) ? floored : max;
+}
+
+/**
+ * Calculates level progression for a given amount of XP gained in O(1).
  *
  * Rules:
  * - Cumulative XP is preserved (currentXP is never reset to 0 upon leveling up).
  * - Threshold increments by 2,000 XP per level.
- * - Processes all thresholds crossed in a single XP gain (e.g. gaining multiple levels).
- * - Negative or invalid XP gains are rejected (treated as 0).
+ * - Processes all thresholds crossed in a single XP gain in O(1) time without loops.
+ * - Validates Number.isSafeInteger on all numeric fields and protects against overflow.
+ * - Negative, NaN, or non-finite XP gains are rejected (treated as 0).
  */
 export function addExperience(
   stats: Pick<UserStats, 'level' | 'currentXP' | 'xpForNextLevel'>,
   xpGained: number,
 ): ProgressionResult {
-  const validXpGain = Number.isFinite(xpGained) && xpGained > 0 ? Math.round(xpGained) : 0;
+  let level = toSafeIntegerInRange(stats?.level, 1, 1, MAX_SAFE_LEVEL);
+  let currentXP = toSafeIntegerInRange(stats?.currentXP, 0, 0, MAX_SAFE_XP);
+  let xpForNextLevel = toSafeIntegerInRange(stats?.xpForNextLevel, XP_PER_LEVEL, 1, MAX_SAFE_XP);
 
-  let level = typeof stats.level === 'number' && Number.isInteger(stats.level) && stats.level > 0
-    ? stats.level
-    : 1;
+  // Validate xpGained: must be positive safe number
+  let validXpGain = 0;
+  if (typeof xpGained === 'number' && Number.isFinite(xpGained) && xpGained > 0) {
+    validXpGain = xpGained > MAX_SAFE_XP ? MAX_SAFE_XP : Math.floor(xpGained);
+    if (!Number.isSafeInteger(validXpGain)) {
+      validXpGain = MAX_SAFE_XP;
+    }
+  }
 
-  let currentXP = typeof stats.currentXP === 'number' && Number.isFinite(stats.currentXP) && stats.currentXP >= 0
-    ? Math.round(stats.currentXP)
-    : 0;
-
-  let xpForNextLevel = typeof stats.xpForNextLevel === 'number' && Number.isFinite(stats.xpForNextLevel) && stats.xpForNextLevel > 0
-    ? Math.round(stats.xpForNextLevel)
-    : XP_PER_LEVEL;
-
-  // Ensure xpForNextLevel is consistent with current level
+  // Preserve established curve for level 14 / threshold 8000
   if (level >= 14) {
-    const minThresholdForLevel = 8000 + (level - 14) * XP_PER_LEVEL;
+    const minThresholdForLevel = Math.min(
+      MAX_SAFE_XP,
+      8000 + (level - 14) * XP_PER_LEVEL,
+    );
     if (xpForNextLevel < minThresholdForLevel) {
       xpForNextLevel = minThresholdForLevel;
     }
   }
 
-  const newXP = currentXP + validXpGain;
+  // Protect against addition overflow
+  const newXP = (currentXP > MAX_SAFE_XP - validXpGain)
+    ? MAX_SAFE_XP
+    : currentXP + validXpGain;
+
   let levelsGained = 0;
 
-  while (newXP >= xpForNextLevel) {
-    level += 1;
-    xpForNextLevel += XP_PER_LEVEL;
-    levelsGained += 1;
+  // O(1) mathematical calculation of levels crossed without while loops
+  if (newXP >= xpForNextLevel && level < MAX_SAFE_LEVEL) {
+    const diff = newXP - xpForNextLevel;
+    let levels = Math.floor(diff / XP_PER_LEVEL) + 1;
+    if (level + levels > MAX_SAFE_LEVEL) {
+      levels = Math.max(0, MAX_SAFE_LEVEL - level);
+    }
+    levelsGained = levels;
+    level += levels;
+
+    const thresholdIncrement = levels * XP_PER_LEVEL;
+    xpForNextLevel = (xpForNextLevel > MAX_SAFE_XP - thresholdIncrement)
+      ? MAX_SAFE_XP
+      : xpForNextLevel + thresholdIncrement;
   }
 
   return {
@@ -63,14 +107,15 @@ export function addExperience(
 }
 
 /**
- * Reconciles and sanitizes user statistics from persistent storage (e.g. LocalStorage).
+ * Reconciles and sanitizes user statistics from persistent storage in O(1).
  *
  * Guarantees:
  * - Does not re-grant XP or erase legitimate accumulated progress.
- * - If currentXP >= xpForNextLevel (e.g. from previous single-threshold progression),
- *   advances level and xpForNextLevel to reconcile consistency.
- * - Gracefully handles malformed JSON, corrupted numbers, negative values, and missing fields.
+ * - Reconciles levels and thresholds in O(1) time without loops.
+ * - Strictly validates Number.isSafeInteger on all numeric fields and protects against overflow.
+ * - Gracefully handles malformed JSON, corrupted numbers, values above MAX_SAFE_INTEGER, and missing fields.
  * - Preserves full compatibility with UserStats format.
+ * - Guaranteed idempotent: reconcile(reconcile(stats)) === reconcile(stats).
  */
 export function reconcileUserStats(
   saved: unknown,
@@ -92,34 +137,36 @@ export function reconcileUserStats(
 
   const data = candidate as Partial<UserStats>;
 
-  let level = typeof data.level === 'number' && Number.isInteger(data.level) && data.level > 0
-    ? data.level
-    : fallback.level;
-
-  let currentXP = typeof data.currentXP === 'number' && Number.isFinite(data.currentXP) && data.currentXP >= 0
-    ? Math.round(data.currentXP)
-    : fallback.currentXP;
-
-  let xpForNextLevel = typeof data.xpForNextLevel === 'number' && Number.isFinite(data.xpForNextLevel) && data.xpForNextLevel > 0
-    ? Math.round(data.xpForNextLevel)
-    : fallback.xpForNextLevel;
+  let level = toSafeIntegerInRange(data.level, fallback.level, 1, MAX_SAFE_LEVEL);
+  let currentXP = toSafeIntegerInRange(data.currentXP, fallback.currentXP, 0, MAX_SAFE_XP);
+  let xpForNextLevel = toSafeIntegerInRange(data.xpForNextLevel, fallback.xpForNextLevel, 1, MAX_SAFE_XP);
 
   if (level >= 14) {
-    const minThresholdForLevel = 8000 + (level - 14) * XP_PER_LEVEL;
+    const minThresholdForLevel = Math.min(
+      MAX_SAFE_XP,
+      8000 + (level - 14) * XP_PER_LEVEL,
+    );
     if (xpForNextLevel < minThresholdForLevel) {
       xpForNextLevel = minThresholdForLevel;
     }
   }
 
-  // Advance level if currentXP already met or exceeded threshold
-  while (currentXP >= xpForNextLevel) {
-    level += 1;
-    xpForNextLevel += XP_PER_LEVEL;
+  // O(1) mathematical reconciliation without while loops
+  if (currentXP >= xpForNextLevel && level < MAX_SAFE_LEVEL) {
+    const diff = currentXP - xpForNextLevel;
+    let levels = Math.floor(diff / XP_PER_LEVEL) + 1;
+    if (level + levels > MAX_SAFE_LEVEL) {
+      levels = Math.max(0, MAX_SAFE_LEVEL - level);
+    }
+    level += levels;
+
+    const thresholdIncrement = levels * XP_PER_LEVEL;
+    xpForNextLevel = (xpForNextLevel > MAX_SAFE_XP - thresholdIncrement)
+      ? MAX_SAFE_XP
+      : xpForNextLevel + thresholdIncrement;
   }
 
-  const streakDays = typeof data.streakDays === 'number' && Number.isFinite(data.streakDays) && data.streakDays >= 0
-    ? Math.floor(data.streakDays)
-    : fallback.streakDays;
+  const streakDays = toSafeIntegerInRange(data.streakDays, fallback.streakDays, 0, MAX_SAFE_XP);
 
   const streakFrozenToday = typeof data.streakFrozenToday === 'boolean'
     ? data.streakFrozenToday
@@ -129,13 +176,9 @@ export function reconcileUserStats(
     ? data.lastWorkoutDate
     : fallback.lastWorkoutDate;
 
-  const totalWorkoutsCompleted = typeof data.totalWorkoutsCompleted === 'number' && Number.isFinite(data.totalWorkoutsCompleted) && data.totalWorkoutsCompleted >= 0
-    ? Math.floor(data.totalWorkoutsCompleted)
-    : fallback.totalWorkoutsCompleted;
+  const totalWorkoutsCompleted = toSafeIntegerInRange(data.totalWorkoutsCompleted, fallback.totalWorkoutsCompleted, 0, MAX_SAFE_XP);
 
-  const totalLifetimeVolumeKg = typeof data.totalLifetimeVolumeKg === 'number' && Number.isFinite(data.totalLifetimeVolumeKg) && data.totalLifetimeVolumeKg >= 0
-    ? Math.round(data.totalLifetimeVolumeKg)
-    : fallback.totalLifetimeVolumeKg;
+  const totalLifetimeVolumeKg = toSafeIntegerInRange(data.totalLifetimeVolumeKg, fallback.totalLifetimeVolumeKg, 0, MAX_SAFE_XP);
 
   const streakHistory = Array.isArray(data.streakHistory) && data.streakHistory.length === 7
     ? data.streakHistory.map(Boolean)

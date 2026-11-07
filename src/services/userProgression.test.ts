@@ -4,6 +4,8 @@ import {
   addExperience,
   reconcileUserStats,
   XP_PER_LEVEL,
+  MAX_SAFE_XP,
+  MAX_SAFE_LEVEL,
 } from './userProgression';
 import { INITIAL_USER_STATS } from '../data/presetRoutines';
 import { UserStats } from '../types/workout';
@@ -16,6 +18,9 @@ test('1. Ganho de XP abaixo do limiar mantém o nível e incrementa currentXP', 
   assert.equal(result.level, 14);
   assert.equal(result.xpForNextLevel, 8000);
   assert.equal(result.levelsGained, 0);
+  assert.equal(Number.isSafeInteger(result.currentXP), true);
+  assert.equal(Number.isSafeInteger(result.level), true);
+  assert.equal(Number.isSafeInteger(result.xpForNextLevel), true);
 });
 
 test('2. Ganho exatamente no limiar sobe de nível e incrementa o próximo limiar em 2000', () => {
@@ -27,6 +32,9 @@ test('2. Ganho exatamente no limiar sobe de nível e incrementa o próximo limia
   assert.equal(result.level, 15);
   assert.equal(result.xpForNextLevel, 10000);
   assert.equal(result.levelsGained, 1);
+  assert.equal(Number.isSafeInteger(result.currentXP), true);
+  assert.equal(Number.isSafeInteger(result.level), true);
+  assert.equal(Number.isSafeInteger(result.xpForNextLevel), true);
 });
 
 test('3. Ganho acima de um limiar preserva XP excedente e sobe de nível', () => {
@@ -40,7 +48,7 @@ test('3. Ganho acima de um limiar preserva XP excedente e sobe de nível', () =>
   assert.equal(result.levelsGained, 1);
 });
 
-test('4. Ganho que atravessa dois ou mais níveis processa todos os limiares', () => {
+test('4. Ganho que atravessa dois ou mais níveis processa todos os limiares em O(1)', () => {
   // 6450 + 4000 = 10450:
   // - 10450 >= 8000 -> Nível 15, próximo limiar 10000
   // - 10450 >= 10000 -> Nível 16, próximo limiar 12000
@@ -166,4 +174,107 @@ test('8. Valores inválidos ou inconsistentes no LocalStorage são reconciliados
   assert.deepEqual(reconcileUserStats(null), INITIAL_USER_STATS);
   assert.deepEqual(reconcileUserStats('{ corrupt json string'), INITIAL_USER_STATS);
   assert.deepEqual(reconcileUserStats(12345), INITIAL_USER_STATS);
+});
+
+test('9. Number.MAX_SAFE_INTEGER: cálculo O(1) imediato sem travar nem estourar precisão', () => {
+  const initial = { level: 14, currentXP: 6450, xpForNextLevel: 8000 };
+
+  // Passando Number.MAX_SAFE_INTEGER como ganho de XP
+  const startTime = Date.now();
+  const result = addExperience(initial, Number.MAX_SAFE_INTEGER);
+  const durationMs = Date.now() - startTime;
+
+  // Deve executar instantaneamente (menos de 50ms) comprovando cálculo O(1)
+  assert.ok(durationMs < 50, `Executou em ${durationMs}ms, esperado < 50ms`);
+  assert.equal(Number.isSafeInteger(result.level), true);
+  assert.equal(Number.isSafeInteger(result.currentXP), true);
+  assert.equal(Number.isSafeInteger(result.xpForNextLevel), true);
+  assert.equal(result.currentXP, Number.MAX_SAFE_INTEGER);
+  assert.equal(result.level, MAX_SAFE_LEVEL);
+});
+
+test('10. Valores finitos acima de Number.MAX_SAFE_INTEGER são contidos na faixa segura', () => {
+  // Valores finitos exorbitantes (ex: 1e18 ou 1e20)
+  const hugeCandidate = {
+    level: 1e18,
+    currentXP: 1e25,
+    xpForNextLevel: 1e30,
+    streakDays: 1e18,
+    streakFrozenToday: false,
+    lastWorkoutDate: '2026-11-06',
+    totalWorkoutsCompleted: 1e18,
+    totalLifetimeVolumeKg: 1e20,
+    streakHistory: [true, true, true, true, true, true, true],
+  };
+
+  const reconciled = reconcileUserStats(hugeCandidate);
+
+  assert.equal(Number.isSafeInteger(reconciled.level), true);
+  assert.equal(Number.isSafeInteger(reconciled.currentXP), true);
+  assert.equal(Number.isSafeInteger(reconciled.xpForNextLevel), true);
+  assert.equal(Number.isSafeInteger(reconciled.streakDays), true);
+  assert.equal(Number.isSafeInteger(reconciled.totalWorkoutsCompleted), true);
+  assert.equal(Number.isSafeInteger(reconciled.totalLifetimeVolumeKg), true);
+  assert.equal(reconciled.currentXP, Number.MAX_SAFE_INTEGER);
+  assert.equal(reconciled.level, MAX_SAFE_LEVEL);
+  assert.equal(reconciled.streakDays, Number.MAX_SAFE_INTEGER);
+});
+
+test('11. Ganhos de XP que provoquem overflow são contidos em Number.MAX_SAFE_INTEGER', () => {
+  const nearMaxStats = {
+    level: 100,
+    currentXP: Number.MAX_SAFE_INTEGER - 100,
+    xpForNextLevel: Number.MAX_SAFE_INTEGER - 50,
+  };
+
+  // Ganho de 500 XP provocaria overflow além de Number.MAX_SAFE_INTEGER
+  const result = addExperience(nearMaxStats, 500);
+
+  assert.equal(Number.isSafeInteger(result.currentXP), true);
+  assert.equal(result.currentXP, Number.MAX_SAFE_INTEGER);
+  assert.equal(Number.isSafeInteger(result.level), true);
+  assert.equal(Number.isSafeInteger(result.xpForNextLevel), true);
+  assert.ok(result.level >= 100);
+});
+
+test('12. Níveis e limiares fora da faixa segura são corrigidos', () => {
+  // Limiar zero, negativo ou NaN
+  const badThresholdStats = {
+    level: 14,
+    currentXP: 6450,
+    xpForNextLevel: -500,
+  };
+  const resultBadThreshold = addExperience(badThresholdStats, 350);
+  assert.equal(resultBadThreshold.xpForNextLevel, 8000);
+  assert.equal(resultBadThreshold.level, 14);
+  assert.equal(resultBadThreshold.currentXP, 6800);
+
+  // Nível exorbitante ou corrompido
+  const badLevelStats = {
+    level: Number.MAX_SAFE_INTEGER + 10,
+    currentXP: 5000,
+    xpForNextLevel: 10000,
+  };
+  const resultBadLevel = addExperience(badLevelStats, 100);
+  assert.equal(Number.isSafeInteger(resultBadLevel.level), true);
+  assert.ok(resultBadLevel.level <= MAX_SAFE_LEVEL);
+});
+
+test('13. Idempotência da reconciliação: reconcile(reconcile(stats)) é estritamente idêntico', () => {
+  const testCases = [
+    INITIAL_USER_STATS,
+    { level: 14, currentXP: 10500, xpForNextLevel: 8000 },
+    { level: 1e18, currentXP: 1e25, xpForNextLevel: 1e30 },
+    { level: -10, currentXP: NaN, xpForNextLevel: 0 },
+    { level: 20, currentXP: 25000, xpForNextLevel: 26000, streakDays: 15, streakFrozenToday: true, lastWorkoutDate: '2026-11-06' },
+  ];
+
+  for (const tc of testCases) {
+    const pass1 = reconcileUserStats(tc);
+    const pass2 = reconcileUserStats(pass1);
+    const pass3 = reconcileUserStats(pass2);
+
+    assert.deepEqual(pass2, pass1, 'Segunda reconciliação deve ser idêntica à primeira');
+    assert.deepEqual(pass3, pass1, 'Terceira reconciliação deve ser idêntica à primeira');
+  }
 });
