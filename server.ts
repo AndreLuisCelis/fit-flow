@@ -30,10 +30,15 @@ app.use(express.json());
 
 // Initialize Gemini Client
 const apiKey = process.env.GEMINI_API_KEY || '';
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+export const geminiClient = {
+  current: apiKey ? new GoogleGenAI({ apiKey }) : null,
+};
 
 // API Route: Generate or adapt workout via Gemini 3.8 Flash
-app.post('/api/gemini/generate-workout', async (req, res) => {
+export async function handleGenerateWorkout(
+  req: express.Request,
+  res: express.Response,
+) {
   const workoutRequest = validateWorkoutRequest(req.body);
   if (!workoutRequest) {
     return res.status(400).json({ success: false, message: 'Parâmetros inválidos para gerar a rotina.' });
@@ -52,7 +57,7 @@ app.post('/api/gemini/generate-workout', async (req, res) => {
   } = workoutRequest;
 
   try {
-    if (!ai) {
+    if (!geminiClient.current) {
       // Fallback if no API key configured in dev
       const routine = generateProfileFallback(focus, durationMinutes, language, allowedEquipment, experienceLevel, profileGoals);
       const validatedFallback = routine
@@ -123,7 +128,7 @@ Respond ONLY with valid JSON (no markdown formatting, no code block backticks) a
 Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 unique target muscles, exactly matching the primaryMuscle values used by the exercises. Include 1–10 exercises. defaultWeight must be from 0 to 500 kg; defaultReps an integer from 1 to 30; setsCount an integer from 1 to 12; targetRestSeconds an integer from 0 to 600. Total sets must not exceed two thirds of targetDurationMinutes (rounded down). Use only declared fields; do not add fields.
 `;
 
-    const response = await ai.models.generateContent({
+    const response = await geminiClient.current.models.generateContent({
       model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
@@ -168,9 +173,11 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
       routine: validatedFallback,
     });
   }
-});
+}
 
-function generateProfileFallback(
+app.post('/api/gemini/generate-workout', handleGenerateWorkout);
+
+export function generateProfileFallback(
   focus: string,
   duration: number,
   language: 'pt' | 'en',
@@ -209,7 +216,8 @@ function generateProfileFallback(
       primaryMuscle: exercise.primaryMuscle,
       category: exercise.category,
       ...(exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {}),
-      defaultWeight: exercise.defaultWeight,
+      // Fallback sem avaliação individual: não prescreve carga. O usuário ajusta pela técnica e pelo esforço percebido (RPE).
+      defaultWeight: 0,
       defaultReps: exercise.defaultReps,
       setsCount: experience === 'beginner' ? Math.min(3, exercise.defaultSets) : exercise.defaultSets,
       targetRestSeconds: exercise.restSeconds,
@@ -236,7 +244,8 @@ function generateProfileFallback(
       primaryMuscle: exercise.primaryMuscle,
       category: exercise.category,
       ...(exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {}),
-      defaultWeight: exercise.defaultWeight,
+      // Fallback sem avaliação individual: não prescreve carga. O usuário ajusta pela técnica e pelo esforço percebido (RPE).
+      defaultWeight: 0,
       defaultReps: exercise.defaultReps,
       setsCount: experience === 'beginner' ? Math.min(3, exercise.defaultSets) : exercise.defaultSets,
       targetRestSeconds: exercise.restSeconds,
@@ -271,15 +280,15 @@ function generateProfileFallback(
     targetMuscles,
     exercises,
     coachingNotes: isPt
-      ? `Rotina adaptada para seus objetivos de ${describeGoals(goals)} e nível ${experiencePrompt[experience]}.`
-      : `Routine adapted for your goals (${describeGoals(goals)}) and ${experiencePrompt[experience]} experience level.`,
+      ? `Rotina adaptada para seus objetivos de ${describeGoals(goals)} e nível ${experiencePrompt[experience]}. Carga não prescrita: comece sem peso ou com carga leve, ajuste pela execução técnica e pelo esforço percebido (RPE). Reduza a carga ou interrompa o exercício se houver dor, tontura, falta de ar ou sintomas anormais.`
+      : `Routine adapted for your goals (${describeGoals(goals)}) and ${experiencePrompt[experience]} experience level. No load prescribed: start with no weight or a light load, adjust by technique and perceived exertion (RPE). Reduce the load or stop the exercise if you feel pain, dizziness, shortness of breath, or abnormal symptoms.`,
   };
 
   return validateGeneratedWorkout(candidate, equipment);
 }
 
 // Helper for deterministic high quality fallback
-function generateFallbackRoutine(
+export function generateFallbackRoutine(
   focus: string,
   duration: number,
   language: 'pt' | 'en',
@@ -303,7 +312,7 @@ function generateFallbackRoutine(
           name: isPt ? 'Levantamento Terra Convencional' : 'Conventional Deadlift',
           primaryMuscle: 'back',
           category: 'barbell',
-          defaultWeight: 120,
+          defaultWeight: 0,
           defaultReps: 5,
           setsCount: 4,
           targetRestSeconds: 90,
@@ -314,7 +323,7 @@ function generateFallbackRoutine(
           name: isPt ? 'Puxada Alta na Polia' : 'Lat Pulldown',
           primaryMuscle: 'back',
           category: 'cable',
-          defaultWeight: 65,
+          defaultWeight: 0,
           defaultReps: 10,
           setsCount: 4,
           targetRestSeconds: 75,
@@ -325,7 +334,7 @@ function generateFallbackRoutine(
           name: isPt ? 'Remada Curvada com Barra' : 'Bent-Over Barbell Row',
           primaryMuscle: 'back',
           category: 'barbell',
-          defaultWeight: 70,
+          defaultWeight: 0,
           defaultReps: 8,
           setsCount: 3,
           targetRestSeconds: 75,
@@ -336,7 +345,7 @@ function generateFallbackRoutine(
           name: isPt ? 'Rosca Direta com Barra W' : 'EZ-Bar Bicep Curl',
           primaryMuscle: 'biceps',
           category: 'barbell',
-          defaultWeight: 30,
+          defaultWeight: 0,
           defaultReps: 10,
           setsCount: 3,
           targetRestSeconds: 60,
@@ -362,7 +371,7 @@ function generateFallbackRoutine(
         name: isPt ? 'Supino Reto com Barra' : 'Barbell Bench Press',
         primaryMuscle: 'chest',
         category: 'barbell',
-        defaultWeight: 80,
+        defaultWeight: 0,
         defaultReps: 8,
         setsCount: 4,
         targetRestSeconds: 90,
@@ -373,7 +382,7 @@ function generateFallbackRoutine(
         name: isPt ? 'Supino Inclinado com Halteres' : 'Incline Dumbbell Press',
         primaryMuscle: 'chest',
         category: 'dumbbell',
-        defaultWeight: 30,
+        defaultWeight: 0,
         defaultReps: 10,
         setsCount: 3,
         targetRestSeconds: 75,
@@ -384,7 +393,7 @@ function generateFallbackRoutine(
         name: isPt ? 'Desenvolvimento com Halteres' : 'Dumbbell Shoulder Press',
         primaryMuscle: 'shoulders',
         category: 'dumbbell',
-        defaultWeight: 22,
+        defaultWeight: 0,
         defaultReps: 10,
         setsCount: 3,
         targetRestSeconds: 75,
@@ -395,7 +404,7 @@ function generateFallbackRoutine(
         name: isPt ? 'Tríceps Corda no Cross' : 'Cable Triceps Pushdown',
         primaryMuscle: 'triceps',
         category: 'cable',
-        defaultWeight: 25,
+        defaultWeight: 0,
         defaultReps: 12,
         setsCount: 3,
         targetRestSeconds: 60,
@@ -434,4 +443,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (import.meta.main) {
+  startServer();
+}
