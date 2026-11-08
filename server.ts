@@ -26,13 +26,70 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 
 // Initialize Gemini Client
 const apiKey = process.env.GEMINI_API_KEY || '';
 export const geminiClient = {
   current: apiKey ? new GoogleGenAI({ apiKey }) : null,
 };
+
+// ---- Proteção do endpoint Gemini contra abuso ----
+
+const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_REQUEST_TIMEOUT_MS) || 25_000;
+const GEMINI_MAX_CONCURRENT = Number(process.env.GEMINI_MAX_CONCURRENT) || 4;
+const GEMINI_RATE_LIMIT_MAX = Number(process.env.GEMINI_RATE_LIMIT_MAX) || 20;
+const GEMINI_RATE_LIMIT_WINDOW_MS = Number(process.env.GEMINI_RATE_LIMIT_WINDOW_MS) || 60_000;
+
+let geminiConcurrentRequests = 0;
+
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>();
+
+function getRateLimitKey(req: express.Request): string {
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+export function rateLimiter(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  const now = Date.now();
+  const key = getRateLimitKey(req);
+  const entry = rateLimitMap.get(key);
+
+  if (!entry || now >= entry.resetTime) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + GEMINI_RATE_LIMIT_WINDOW_MS });
+    next();
+    return;
+  }
+
+  if (entry.count >= GEMINI_RATE_LIMIT_MAX) {
+    res.status(429).json({ success: false, message: 'Muitas requisições. Tente novamente mais tarde.' });
+    return;
+  }
+
+  entry.count += 1;
+  next();
+}
+
+// Limpa entradas expiradas do mapa para não vazar memória em execuções longas.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap.entries()) {
+    if (now >= entry.resetTime) rateLimitMap.delete(key);
+  }
+}, GEMINI_RATE_LIMIT_WINDOW_MS).unref();
+
+export function resetRateLimitForTesting(): void {
+  rateLimitMap.clear();
+  geminiConcurrentRequests = 0;
+}
 
 // API Route: Generate or adapt workout via Gemini 3.8 Flash
 export async function handleGenerateWorkout(
@@ -175,7 +232,7 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
   }
 }
 
-app.post('/api/gemini/generate-workout', handleGenerateWorkout);
+app.post('/api/gemini/generate-workout', rateLimiter, handleGenerateWorkout);
 
 export function generateProfileFallback(
   focus: string,
