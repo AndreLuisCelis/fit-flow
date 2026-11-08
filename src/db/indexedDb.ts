@@ -317,9 +317,28 @@ export class FitFlowDatabase {
           updatedAt: Date.now(),
         };
         const request = store.put(record);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-        tx.onerror = () => reject(tx.error);
+        let settled = false;
+        request.onsuccess = () => {
+          // request succeeded; wait for tx.oncomplete to resolve
+        };
+        request.onerror = () => {
+          if (!settled) {
+            settled = true;
+            reject(request.error);
+          }
+        };
+        tx.onerror = () => {
+          if (!settled) {
+            settled = true;
+            reject(tx.error);
+          }
+        };
+        tx.oncomplete = () => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
       } catch (err) {
         reject(err);
       }
@@ -356,9 +375,25 @@ export class FitFlowDatabase {
         const tx = db.transaction('active_workout', 'readwrite');
         const store = tx.objectStore('active_workout');
         const request = store.delete('active');
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-        tx.onerror = () => reject(tx.error);
+        let settled = false;
+        request.onerror = () => {
+          if (!settled) {
+            settled = true;
+            reject(request.error);
+          }
+        };
+        tx.onerror = () => {
+          if (!settled) {
+            settled = true;
+            reject(tx.error);
+          }
+        };
+        tx.oncomplete = () => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
       } catch (err) {
         reject(err);
       }
@@ -385,9 +420,25 @@ export class FitFlowDatabase {
         historyStore.put(session);
         activeStore.delete('active');
 
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(new Error('Transaction aborted'));
+        let settled = false;
+        tx.oncomplete = () => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
+        tx.onerror = () => {
+          if (!settled) {
+            settled = true;
+            reject(tx.error || new Error('Transaction error'));
+          }
+        };
+        tx.onabort = () => {
+          if (!settled) {
+            settled = true;
+            reject(tx.error || new Error('Transaction aborted'));
+          }
+        };
       } catch (err) {
         reject(err);
       }

@@ -168,6 +168,7 @@ export default function App() {
       try {
         const persisted = await activeWorkoutManager.restore();
         if (persisted && persisted.session && !persisted.session.isFinished) {
+          await activeWorkoutManager.startSession(persisted.session);
           setActiveSession(persisted.session);
           setCurrentTab('workout');
 
@@ -293,6 +294,9 @@ export default function App() {
 
     setActiveSession(newSession);
     setCurrentTab('workout');
+    if (activeWorkoutManager.getHydrated()) {
+      activeWorkoutManager.startSession(newSession);
+    }
   };
 
   const handleQuickStart = () => {
@@ -372,7 +376,6 @@ export default function App() {
   const handleFinishWorkout = async () => {
     if (!activeSession || isFinishingWorkoutRef.current) return;
     isFinishingWorkoutRef.current = true;
-    soundManager.playLevelUp();
 
     const durationSec = Math.max(60, Math.round((Date.now() - activeSession.startTime) / 1000));
     let totalVol = 0;
@@ -413,8 +416,11 @@ export default function App() {
       today,
     );
 
+    // Deterministic session ID ensures retry idempotency
+    const sessionId = (activeSession as any).id || `sess-${activeSession.startTime}`;
+
     const summary: CompletedSessionSummary = {
-      id: `sess-${Date.now()}`,
+      id: sessionId,
       date: today,
       routineTitle: activeSession.routineTitle,
       durationSeconds: durationSec,
@@ -427,10 +433,10 @@ export default function App() {
       exerciseDetails,
     };
 
-    // Update User Stats
+    // Prepare updated stats (applied ONLY if persistent storage succeeds)
     const progression = addExperience(userStats, xpEarned);
 
-    const nextSessions = [summary, ...completedSessions];
+    const nextSessions = [summary, ...completedSessions.filter(s => s.id !== summary.id)];
     const newStreakDays = calculateRealStreak(nextSessions, today);
     const newStreakHistory = updateStreakHistory(
       userStats.streakHistory,
@@ -450,26 +456,25 @@ export default function App() {
       streakHistory: newStreakHistory,
     };
 
-    // Transactional save to IndexedDB: atomic history insertion + active workout deletion
     try {
-      await fitFlowDB.completeWorkoutTransaction(summary);
-      await activeWorkoutManager.clear();
-    } catch (err) {
-      console.warn('Failed to complete workout transaction in IndexedDB, attempting fallback:', err);
-      try {
-        await fitFlowDB.addHistory(summary);
-        await activeWorkoutManager.clear();
-      } catch (fallbackErr) {
-        console.warn('Fallback persistence also failed:', fallbackErr);
-      }
-    } finally {
+      // Execute atomic transaction: write history summary and clear active workout
+      await activeWorkoutManager.completeWorkout(summary);
+
+      // ONLY on verified successful persistence:
+      soundManager.playLevelUp();
       setUserStats(updatedStats);
-      setCompletedSessions(prev => [summary, ...prev]);
+      setCompletedSessions(prev => [summary, ...prev.filter(s => s.id !== summary.id)]);
       setLastSummary(summary);
       setShowSummaryModal(true);
       setActiveSession(null);
       setRestTimerOpen(false);
       setRestTimerRunning(false);
+    } catch (err) {
+      console.error('[FitFlow] Falha ao finalizar treino no IndexedDB:', err);
+      alert(language === 'pt'
+        ? 'Erro ao salvar o treino no banco de dados. Seu progresso foi mantido e você pode tentar finalizar novamente.'
+        : 'Failed to save workout to storage. Your progress is preserved and you can try finishing again.');
+    } finally {
       isFinishingWorkoutRef.current = false;
     }
   };
@@ -477,10 +482,14 @@ export default function App() {
   // Discard / Cancel Workout
   const handleCancelWorkout = async () => {
     if (confirm(language === 'pt' ? 'Deseja realmente cancelar este treino?' : 'Discard current session progress?')) {
+      try {
+        await activeWorkoutManager.clear();
+      } catch (err) {
+        console.warn('[FitFlow] Error clearing active workout from IndexedDB:', err);
+      }
       setActiveSession(null);
       setRestTimerOpen(false);
       setRestTimerRunning(false);
-      await activeWorkoutManager.clear();
       setCurrentTab('routines');
     }
   };

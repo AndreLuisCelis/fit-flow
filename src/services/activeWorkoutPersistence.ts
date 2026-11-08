@@ -1,4 +1,4 @@
-import { ActiveWorkoutSession, PersistedRestTimerState, PersistedActiveWorkout } from '../types/workout';
+import { ActiveWorkoutSession, PersistedRestTimerState, PersistedActiveWorkout, CompletedSessionSummary } from '../types/workout';
 import { FitFlowDatabase, fitFlowDB } from '../db/indexedDb';
 
 export interface RestoredRestTimerResult {
@@ -74,12 +74,15 @@ export interface SavePayload {
 
 /**
  * Manages serialized, race-free persistence of the active workout session in IndexedDB.
- * Prevents hydration overwrite, serializes async operations, and drops obsolete states.
+ * Coordinates all saves, cancels, and completions through a verified async queue to prevent
+ * any pending write from recreating a session after completion or cancellation.
  */
 export class ActiveWorkoutPersistenceManager {
-  private inFlight = false;
+  private queue: Promise<void> = Promise.resolve();
   private pendingPayload: SavePayload | null = null;
   private isHydrated = false;
+  private isTerminated = false;
+  private activeSessionId: string | null = null;
 
   constructor(private db: FitFlowDatabase = fitFlowDB) {}
 
@@ -91,15 +94,34 @@ export class ActiveWorkoutPersistenceManager {
     return this.isHydrated;
   }
 
+  public isSessionTerminated(): boolean {
+    return this.isTerminated;
+  }
+
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(() => task(), () => task());
+    this.queue = run.then(() => {}, () => {});
+    return run;
+  }
+
   /**
-   * Queues an active workout update. If a write is already in flight,
-   * stores the newest state as pending so it will be saved immediately after.
+   * Starts tracking a new or resumed session, resetting the termination flag.
+   */
+  public async startSession(session: ActiveWorkoutSession): Promise<void> {
+    this.isTerminated = false;
+    this.activeSessionId = `${session.routineId}-${session.startTime}`;
+    await this.scheduleSave(session, null);
+  }
+
+  /**
+   * Queues an active workout update in a serialized pipeline.
+   * If the session was already terminated (cleared or completed), any pending write is dropped.
    */
   public async scheduleSave(
     session: ActiveWorkoutSession | null,
     restTimer?: PersistedRestTimerState | null,
   ): Promise<void> {
-    if (!this.isHydrated) {
+    if (!this.isHydrated || this.isTerminated) {
       return;
     }
 
@@ -108,50 +130,87 @@ export class ActiveWorkoutPersistenceManager {
       return;
     }
 
+    const sessionId = `${session.routineId}-${session.startTime}`;
+    if (this.activeSessionId && this.activeSessionId !== sessionId) {
+      this.isTerminated = false;
+    }
+    this.activeSessionId = sessionId;
     this.pendingPayload = { session, restTimer };
 
-    if (this.inFlight) {
-      return;
-    }
-
-    this.inFlight = true;
-    try {
-      while (this.pendingPayload) {
-        const payload = this.pendingPayload;
-        this.pendingPayload = null;
-        try {
-          await this.db.saveActiveWorkout(payload.session, payload.restTimer);
-        } catch (err) {
-          console.warn('[ActiveWorkoutPersistence] Error writing to IndexedDB:', err);
-        }
+    return this.enqueue(async () => {
+      if (this.isTerminated || !this.pendingPayload) {
+        return;
       }
-    } finally {
-      this.inFlight = false;
-    }
+      const payload = this.pendingPayload;
+      this.pendingPayload = null;
+      try {
+        await this.db.saveActiveWorkout(payload.session, payload.restTimer);
+      } catch (err) {
+        console.warn('[ActiveWorkoutPersistence] Error writing to IndexedDB:', err);
+      }
+    });
+  }
+
+  /**
+   * Atomically completes the active workout session:
+   * Discards pending saves, flags the session as terminated,
+   * awaits any in-flight operations, and executes the atomic transaction
+   * to write the history summary and delete the active workout.
+   *
+   * If the database transaction fails, reverts termination so the session can be preserved and retried.
+   */
+  public async completeWorkout(summary: CompletedSessionSummary): Promise<void> {
+    this.isTerminated = true;
+    this.pendingPayload = null;
+
+    return this.enqueue(async () => {
+      this.pendingPayload = null;
+      try {
+        await this.db.completeWorkoutTransaction(summary);
+      } catch (err) {
+        this.isTerminated = false;
+        throw err;
+      }
+    });
+  }
+
+  /**
+   * Safely clears active workout storage upon cancellation.
+   * Sets isTerminated=true so no in-flight or subsequent save can recreate the discarded session.
+   */
+  public async clear(): Promise<void> {
+    this.isTerminated = true;
+    this.pendingPayload = null;
+
+    return this.enqueue(async () => {
+      this.pendingPayload = null;
+      try {
+        await this.db.clearActiveWorkout();
+      } catch (err) {
+        console.warn('[ActiveWorkoutPersistence] Error clearing from IndexedDB:', err);
+      }
+    });
   }
 
   /**
    * Restores the active session from storage upon app mount.
    */
   public async restore(): Promise<PersistedActiveWorkout | null> {
-    try {
-      return await this.db.getActiveWorkout();
-    } catch (err) {
-      console.warn('[ActiveWorkoutPersistence] Error restoring from IndexedDB:', err);
-      return null;
-    }
+    return this.enqueue(async () => {
+      try {
+        return await this.db.getActiveWorkout();
+      } catch (err) {
+        console.warn('[ActiveWorkoutPersistence] Error restoring from IndexedDB:', err);
+        return null;
+      }
+    });
   }
 
   /**
-   * Safely clears active workout storage.
+   * Flushes and waits for all queued storage tasks to finish.
    */
-  public async clear(): Promise<void> {
-    this.pendingPayload = null;
-    try {
-      await this.db.clearActiveWorkout();
-    } catch (err) {
-      console.warn('[ActiveWorkoutPersistence] Error clearing from IndexedDB:', err);
-    }
+  public async waitForPendingOperations(): Promise<void> {
+    await this.queue;
   }
 }
 
