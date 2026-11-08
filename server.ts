@@ -227,10 +227,12 @@ export function generateProfileFallback(
     }));
   }
 
+  // Não use os exercícios fixos de Push/Pull do generateFallbackRoutine quando eles
+  // não correspondem ao foco muscular solicitado (ex.: não devolva tríceps/peito/ombros
+  // como treino de pernas). O fallback de corpo inteiro do catálogo abaixo respeita
+  // os equipamentos disponíveis; se nada for compatível, a rotina retorna null.
   if (exercises.length === 0) {
-    exercises = fallback.exercises
-      .filter((exercise: any) => isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired))
-      .sort((left: any, right: any) => left.name.localeCompare(right.name));
+    exercises = [];
   }
   const needsExerciseCatalogFallback = exercises.length === 0;
 

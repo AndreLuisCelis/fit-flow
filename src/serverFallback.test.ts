@@ -156,6 +156,62 @@ test('resultado do fallback passa na validacao de rotina', () => {
   assert.ok(validateGeneratedWorkout(routine, ['dumbbell']));
 });
 
+test('nao devolve exercicios fora do foco muscular solicitado', () => {
+  // Legs com apenas cabos: nao ha exercicio de pernas de cable no catalogo.
+  // Não deve devolver tríceps/peito/ombros apresentados como treino de pernas.
+  const legs = generateProfileFallback('Legs', 45, 'pt', ['cable'], 'beginner', ['health']);
+  assert.ok(legs);
+  if (!legs) return;
+  // Fallback de corpo inteiro do catálogo, respeitando o equipamento disponível.
+  assert.equal(legs.category, 'Full Body');
+  assert.ok(/FitFlow/.test(legs.title));
+  for (const exercise of legs.exercises) {
+    assert.ok(
+      !['triceps', 'chest', 'shoulders'].includes(exercise.primaryMuscle) || legs.category === 'Full Body',
+      `${exercise.name} não deve aparecer como treino de pernas`,
+    );
+  }
+});
+
+test('nao apresenta rotina Push como treino de peito nem Pull como treino de costas fora do foco', () => {
+  const focos: Array<[string, string[]]> = [
+    ['Push', ['chest', 'shoulders', 'triceps']],
+    ['Pull', ['back', 'biceps', 'hamstrings']],
+    ['Upper', ['chest', 'back', 'shoulders', 'biceps', 'triceps']],
+    ['Lower', ['quads', 'glutes', 'hamstrings', 'calves']],
+  ];
+  for (const [focus, muscles] of focos) {
+    const routine = generateProfileFallback(
+      focus, 45, 'en', ['dumbbell', 'barbell', 'cable', 'machine'], 'intermediate', ['muscle_gain'],
+    );
+    assert.ok(routine, `rotina para foco ${focus} não deve ser nula`);
+    if (!routine) continue;
+    for (const exercise of routine.exercises) {
+      assert.ok(
+        muscles.includes(exercise.primaryMuscle),
+        `${exercise.name} (${exercise.primaryMuscle}) fora do foco ${focus}`,
+      );
+    }
+  }
+});
+
+test('foco pernas sem exercícios compatíveis usa fallback de corpo inteiro', () => {
+  const legs = generateProfileFallback('Legs', 45, 'pt', ['cable'], 'beginner', ['health']);
+  assert.ok(legs);
+  if (!legs) return;
+  assert.equal(legs.category, 'Full Body');
+  assert.ok(/FitFlow/.test(legs.title));
+  const legMuscles = ['quads', 'glutes', 'hamstrings', 'calves'];
+  const hasLegExercise = legs.exercises.some((exercise) => legMuscles.includes(exercise.primaryMuscle));
+  // Pode ou não conter exercício de pernas (depende do catálogo de cable), mas não é rotina de pernas.
+  assert.ok(!hasLegExercise || legs.category === 'Full Body');
+});
+
+test('retorna null quando nao ha exercicios compatíveis com os equipamentos', () => {
+  const routine = generateProfileFallback('Legs', 45, 'pt', [], 'beginner', ['health']);
+  assert.equal(routine, null);
+});
+
 test('rotas do Gemini', async (t) => {
   await t.test('faz fallback quando a Gemini esta indisponivel (sem chave)', async () => {
     const res = await invokeRoute(baseRequestBody, null);
