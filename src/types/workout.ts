@@ -84,6 +84,24 @@ export interface ActiveWorkoutSession {
   isFinished: boolean;
 }
 
+export interface PersistedRestTimerState {
+  isOpen: boolean;
+  timeLeft: number;
+  totalTime: number;
+  isRunning: boolean;
+  nextExerciseName?: string;
+  nextSetNumber?: number;
+  isMinimized: boolean;
+  savedAt: number; // Date.now() timestamp
+}
+
+export interface PersistedActiveWorkout {
+  id: string; // 'active'
+  session: ActiveWorkoutSession;
+  restTimer?: PersistedRestTimerState | null;
+  updatedAt: number;
+}
+
 export interface CompletedSessionSummary {
   id: string;
   date: string;
