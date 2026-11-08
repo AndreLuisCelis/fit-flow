@@ -112,6 +112,7 @@ export default function App() {
   // IndexedDB: Histórico de Treinos e Sessão Ativa
   const [completedSessions, setCompletedSessions] = useState<CompletedSessionSummary[]>([]);
   const isFinishingWorkoutRef = useRef<boolean>(false);
+  const [activeWorkoutSaveError, setActiveWorkoutSaveError] = useState(false);
 
   // Active Workout Session
   const [activeSession, setActiveSession] = useState<ActiveWorkoutSession | null>(null);
@@ -125,6 +126,15 @@ export default function App() {
   const [restNextSetNum, setRestNextSetNum] = useState<number | undefined>(undefined);
   const [restTimerMinimized, setRestTimerMinimized] = useState<boolean>(false);
   const restTimerStateRef = useRef<PersistedRestTimerState | null>(null);
+
+  useEffect(() => {
+    activeWorkoutManager.setSaveErrorHandler(() => setActiveWorkoutSaveError(true));
+    activeWorkoutManager.setSaveSuccessHandler(() => setActiveWorkoutSaveError(false));
+    return () => {
+      activeWorkoutManager.setSaveErrorHandler(null);
+      activeWorkoutManager.setSaveSuccessHandler(null);
+    };
+  }, []);
 
   useEffect(() => {
     if (!restTimerOpen) {
@@ -168,7 +178,7 @@ export default function App() {
       try {
         const persisted = await activeWorkoutManager.restore();
         if (persisted && persisted.session && !persisted.session.isFinished) {
-          await activeWorkoutManager.startSession(persisted.session);
+          activeWorkoutManager.resumeSession(persisted.session);
           setActiveSession(persisted.session);
           setCurrentTab('workout');
 
@@ -486,8 +496,13 @@ export default function App() {
         await activeWorkoutManager.clear();
       } catch (err) {
         console.warn('[FitFlow] Error clearing active workout from IndexedDB:', err);
+        alert(language === 'pt'
+          ? 'Não foi possível cancelar o treino porque a exclusão do armazenamento falhou. Seu treino continua aberto; tente novamente.'
+          : 'The workout could not be canceled because storage deletion failed. Your workout remains open; please try again.');
+        return;
       }
       setActiveSession(null);
+      setActiveWorkoutSaveError(false);
       setRestTimerOpen(false);
       setRestTimerRunning(false);
       setCurrentTab('routines');
@@ -531,6 +546,16 @@ export default function App() {
         streakDays={userStats.streakDays}
         profile={profile!}
       />
+
+      {activeWorkoutSaveError && activeSession && (
+        <div className="mx-auto mt-3 w-full max-w-6xl px-3 sm:px-6">
+          <p role="alert" className="rounded-xl border border-amber-500/50 bg-amber-950/60 px-4 py-3 text-sm text-amber-100">
+            {language === 'pt'
+              ? 'Falha ao salvar o treino neste dispositivo. Alterações recentes podem não estar protegidas; mantenha o app aberto e tente novamente.'
+              : 'This workout could not be saved on this device. Recent changes may not be protected; keep the app open and try again.'}
+          </p>
+        </div>
+      )}
 
       {/* Main Dynamic Viewport */}
       <main className="flex-1 w-full pt-4">
