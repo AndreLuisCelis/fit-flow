@@ -19,6 +19,8 @@ function createMemoryIdbFactory(initialVersion = 2) {
 
   let simulateAbortOnce = false;
   let simulateCompleteWorkoutAbortOnce = false;
+  let simulateSaveFailureOnce = false;
+  let simulateClearFailureOnce = false;
 
   function createStoreMock(map: Map<string, any>) {
     return {
@@ -40,6 +42,10 @@ function createMemoryIdbFactory(initialVersion = 2) {
         return req;
       },
       put(val: any) {
+        if (simulateSaveFailureOnce) {
+          simulateSaveFailureOnce = false;
+          throw new Error('Simulated active workout save failure');
+        }
         const key = val.id;
         map.set(key, JSON.parse(JSON.stringify(val)));
         const req: any = { result: key, onsuccess: null, onerror: null };
@@ -54,6 +60,10 @@ function createMemoryIdbFactory(initialVersion = 2) {
         return req;
       },
       delete(key: string) {
+        if (key === 'active' && simulateClearFailureOnce) {
+          simulateClearFailureOnce = false;
+          throw new Error('Simulated active workout deletion failure');
+        }
         map.delete(key);
         const req: any = { result: undefined, onsuccess: null, onerror: null };
         setTimeout(() => req.onsuccess && req.onsuccess({ target: req }), 0);
@@ -81,6 +91,18 @@ function createMemoryIdbFactory(initialVersion = 2) {
     },
     set simulateCompleteWorkoutAbortOnce(val: boolean) {
       simulateCompleteWorkoutAbortOnce = val;
+    },
+    get simulateSaveFailureOnce() {
+      return simulateSaveFailureOnce;
+    },
+    set simulateSaveFailureOnce(val: boolean) {
+      simulateSaveFailureOnce = val;
+    },
+    get simulateClearFailureOnce() {
+      return simulateClearFailureOnce;
+    },
+    set simulateClearFailureOnce(val: boolean) {
+      simulateClearFailureOnce = val;
     },
     open(name: string, version: number) {
       const openReq: any = {
@@ -455,6 +477,25 @@ test('Active Workout Persistence Suite', async (t) => {
     assert.strictEqual(afterCancel, null, 'Sessão deve ser nula após cancelamento');
   });
 
+  await t.test('5.1 Falha ao excluir mantém o treino e permite tentar cancelar novamente', async () => {
+    const memoryFactory = createMemoryIdbFactory();
+    const db = createFitFlowDatabase(memoryFactory as any);
+    const manager = new ActiveWorkoutPersistenceManager(db);
+    manager.setHydrated(true);
+    const session = createSampleActiveSession();
+    await manager.scheduleSave(session);
+    await manager.waitForPendingOperations();
+
+    memoryFactory.simulateClearFailureOnce = true;
+    await assert.rejects(manager.clear(), /Simulated active workout deletion failure/);
+    assert.strictEqual(manager.isSessionTerminated(), false);
+    assert.deepStrictEqual((await manager.restore())?.session, session);
+
+    await manager.clear();
+    assert.strictEqual(await manager.restore(), null);
+    assert.strictEqual(manager.isSessionTerminated(), true);
+  });
+
   // 6. Limpar sessão ao finalizar
   await t.test('6. Limpar sessão e persistir histórico atomicamente ao finalizar', async () => {
     const memoryFactory = createMemoryIdbFactory();
@@ -587,6 +628,26 @@ test('Active Workout Persistence Suite', async (t) => {
     const latest = await manager.restore();
     assert.ok(latest);
     assert.strictEqual(latest.session.totalVolumeMovedKg, 300, 'Último estado enfileirado deve prevalecer');
+  });
+
+  await t.test('9.1 Falha de gravação é comunicada e uma gravação posterior recupera a persistência', async () => {
+    const memoryFactory = createMemoryIdbFactory();
+    const db = createFitFlowDatabase(memoryFactory as any);
+    const manager = new ActiveWorkoutPersistenceManager(db);
+    const saveStatus: string[] = [];
+    manager.setHydrated(true);
+    manager.setSaveErrorHandler(() => saveStatus.push('error'));
+    manager.setSaveSuccessHandler(() => saveStatus.push('success'));
+    await db.getActiveWorkout();
+    memoryFactory.simulateSaveFailureOnce = true;
+
+    await assert.doesNotReject(manager.scheduleSave(createSampleActiveSession()));
+    assert.deepStrictEqual(saveStatus, ['error']);
+    assert.strictEqual(await db.getActiveWorkout(), null);
+
+    await manager.scheduleSave(createSampleActiveSession({ totalVolumeMovedKg: 900 }));
+    assert.deepStrictEqual(saveStatus, ['error', 'success']);
+    assert.strictEqual((await db.getActiveWorkout())?.session.totalVolumeMovedKg, 900);
   });
 
   // 10. Concorrência: Gravações pendentes durante finalização
