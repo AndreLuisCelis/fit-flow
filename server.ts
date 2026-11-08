@@ -26,13 +26,117 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json());
+// Habilita proxy reverso para identificar o IP correto do cliente atrás da Vercel / Nginx
+app.set('trust proxy', 1);
+
+app.use(express.json({ limit: '10kb' }));
 
 // Initialize Gemini Client
 const apiKey = process.env.GEMINI_API_KEY || '';
 export const geminiClient = {
   current: apiKey ? new GoogleGenAI({ apiKey }) : null,
 };
+
+// ---- Proteção do endpoint Gemini contra abuso ----
+
+/**
+ * NOTA DE ARQUITETURA — LIMITAÇÃO DO RATE LIMIT EM MEMÓRIA NO VERCEL (SERVERLESS):
+ *
+ * 1. Estado efêmero por instância: Em ambientes serverless como a Vercel, cada execução
+ *    pode ocorrer em contêineres/lambdas isolados com ciclo de vida curto.
+ *    O `rateLimitMap` e o contador `geminiConcurrentRequests` residem na memória da instância local.
+ * 2. Ausência de estado compartilhado: Múltiplas instâncias simultâneas ou invocadas em
+ *    regiões distintas não compartilham os contadores em memória.
+ * 3. Solução recomendada para escala: Para governança distribuída estrita, avaliar a adoção
+ *    de armazenamento compartilhado de baixa latência (como Upstash Redis via @upstash/ratelimit
+ *    ou Vercel KV / Redis).
+ * 4. Proteção temporária básica: Como o projeto não possui infraestrutura compartilhada já
+ *    provisionada, mantemos a implementação em memória como proteção contra rajadas (burst) e
+ *    abuso local por instância, sem onerar com dependências ou custos externos desnecessários.
+ */
+
+export const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_REQUEST_TIMEOUT_MS) || 25_000;
+export const GEMINI_MAX_CONCURRENT = Number(process.env.GEMINI_MAX_CONCURRENT) || 4;
+export const GEMINI_RATE_LIMIT_MAX = Number(process.env.GEMINI_RATE_LIMIT_MAX) || 20;
+export const GEMINI_RATE_LIMIT_WINDOW_MS = Number(process.env.GEMINI_RATE_LIMIT_WINDOW_MS) || 60_000;
+
+let geminiTimeoutMs = GEMINI_TIMEOUT_MS;
+let geminiConcurrentRequests = 0;
+
+export function getGeminiConcurrentRequests(): number {
+  return geminiConcurrentRequests;
+}
+
+export function setGeminiTimeoutForTesting(ms: number): void {
+  geminiTimeoutMs = ms;
+}
+
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>();
+
+export function getRateLimitKey(req: express.Request): string {
+  // 1. x-real-ip é injetado diretamente pelo proxy da Vercel no edge e não pode ser manipulado pelo cliente.
+  const xRealIp = req.headers?.['x-real-ip'];
+  if (typeof xRealIp === 'string' && xRealIp.trim()) {
+    return xRealIp.trim();
+  }
+
+  // 2. Se trust proxy estiver ativo, o Express extrai o IP confiável em req.ip.
+  if (req.ip) {
+    return req.ip;
+  }
+
+  // 3. Em caso de múltiplos proxies em x-forwarded-for, obtém o primeiro IP válido da cadeia.
+  const forwarded = req.headers?.['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    const firstIp = forwarded.split(',')[0].trim();
+    if (firstIp) return firstIp;
+  }
+
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+export function rateLimiter(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  const now = Date.now();
+  const key = getRateLimitKey(req);
+  const entry = rateLimitMap.get(key);
+
+  if (!entry || now >= entry.resetTime) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + GEMINI_RATE_LIMIT_WINDOW_MS });
+    next();
+    return;
+  }
+
+  if (entry.count >= GEMINI_RATE_LIMIT_MAX) {
+    res.status(429).json({ success: false, message: 'Muitas requisições. Tente novamente mais tarde.' });
+    return;
+  }
+
+  entry.count += 1;
+  next();
+}
+
+// Limpa entradas expiradas do mapa para não vazar memória em execuções longas.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap.entries()) {
+    if (now >= entry.resetTime) rateLimitMap.delete(key);
+  }
+}, GEMINI_RATE_LIMIT_WINDOW_MS).unref();
+
+export function resetRateLimitForTesting(): void {
+  rateLimitMap.clear();
+  geminiConcurrentRequests = 0;
+  geminiTimeoutMs = GEMINI_TIMEOUT_MS;
+}
 
 // API Route: Generate or adapt workout via Gemini 3.8 Flash
 export async function handleGenerateWorkout(
@@ -74,12 +178,26 @@ export async function handleGenerateWorkout(
       });
     }
 
-    const langName = language === 'en' ? 'English' : 'Portuguese (Português do Brasil)';
-    const freqExercisesText = Array.isArray(frequentExercises) && frequentExercises.length > 0
-        ? frequentExercises.join(', ')
-      : 'No exercise history available';
+    // 1. Limite de concorrência: recusar novas solicitações quando atingir GEMINI_MAX_CONCURRENT
+    if (geminiConcurrentRequests >= GEMINI_MAX_CONCURRENT) {
+      return res.status(503).json({
+        success: false,
+        message: 'Serviço temporariamente sobrecarregado por excesso de requisições simultâneas. Tente novamente em instantes.',
+      });
+    }
 
-    const prompt = `
+    geminiConcurrentRequests++;
+    const abortController = new AbortController();
+    let isTimeout = false;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    try {
+      const langName = language === 'en' ? 'English' : 'Portuguese (Português do Brasil)';
+      const freqExercisesText = Array.isArray(frequentExercises) && frequentExercises.length > 0
+          ? frequentExercises.join(', ')
+        : 'No exercise history available';
+
+      const prompt = `
 You are the elite conditioning coach behind FitFlow PWA.
 Create an athletic workout routine with progressive overload metrics in ${langName}.
 
@@ -128,54 +246,90 @@ Respond ONLY with valid JSON (no markdown formatting, no code block backticks) a
 Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 unique target muscles, exactly matching the primaryMuscle values used by the exercises. Include 1–10 exercises. defaultWeight must be from 0 to 500 kg; defaultReps an integer from 1 to 30; setsCount an integer from 1 to 12; targetRestSeconds an integer from 0 to 600. Total sets must not exceed two thirds of targetDurationMinutes (rounded down). Use only declared fields; do not add fields.
 `;
 
-    const response = await geminiClient.current.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.9,
-        topP: 0.95,
-      },
-    });
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          isTimeout = true;
+          try {
+            abortController.abort();
+          } catch {
+            // ignore
+          }
+          reject(new Error('GEMINI_TIMEOUT'));
+        }, geminiTimeoutMs);
+      });
 
-    const text = response.text || '';
-    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsedData = JSON.parse(cleanJson);
-    const personalizedRoutine = validateAndAdaptGeneratedWorkout(parsedData, allowedEquipment, experienceLevel);
-    if (!personalizedRoutine) {
-      throw new Error('Gemini returned an invalid or equipment-incompatible workout');
+      const response = await Promise.race([
+        geminiClient.current.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.9,
+            topP: 0.95,
+            abortSignal: abortController.signal,
+          },
+        }),
+        timeoutPromise,
+      ]);
+
+      const text = response.text || '';
+      const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsedData = JSON.parse(cleanJson);
+      const personalizedRoutine = validateAndAdaptGeneratedWorkout(parsedData, allowedEquipment, experienceLevel);
+      if (!personalizedRoutine) {
+        throw new Error('Gemini returned an invalid or equipment-incompatible workout');
+      }
+
+      return res.status(200).json({
+        success: true,
+        routine: personalizedRoutine,
+      });
+    } catch (error: unknown) {
+      // 2. Retornar erro controlado em caso de timeout sem vazar stack trace ou detalhes internos
+      if (isTimeout || (error instanceof Error && (error.name === 'AbortError' || error.message === 'GEMINI_TIMEOUT'))) {
+        return res.status(504).json({
+          success: false,
+          message: 'Tempo limite esgotado ao gerar treino com o modelo de IA. Tente novamente.',
+        });
+      }
+
+      console.error('Error generating workout with Gemini:', error);
+      // Return graceful fallback routine on failure
+      const fallback = generateProfileFallback(
+        focus,
+        durationMinutes,
+        language,
+        allowedEquipment,
+        experienceLevel,
+        profileGoals,
+      );
+      const validatedFallback = fallback
+        ? validateAndAdaptGeneratedWorkout(fallback, allowedEquipment, experienceLevel)
+        : null;
+      if (!validatedFallback) {
+        return res.status(422).json({ success: false, message: 'Não há exercícios cadastrados para os equipamentos selecionados.' });
+      }
+      return res.status(200).json({
+        success: true,
+        isFallback: true,
+        routine: validatedFallback,
+      });
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      geminiConcurrentRequests = Math.max(0, geminiConcurrentRequests - 1);
     }
-
-    return res.status(200).json({
-      success: true,
-      routine: personalizedRoutine,
-    });
   } catch (error: unknown) {
-    console.error('Error generating workout with Gemini:', error);
-    // Return graceful fallback routine on failure
-    const fallback = generateProfileFallback(
-      focus,
-      durationMinutes,
-      language,
-      allowedEquipment,
-      experienceLevel,
-      profileGoals,
-    );
-    const validatedFallback = fallback
-      ? validateAndAdaptGeneratedWorkout(fallback, allowedEquipment, experienceLevel)
-      : null;
-    if (!validatedFallback) {
-      return res.status(422).json({ success: false, message: 'Não há exercícios cadastrados para os equipamentos selecionados.' });
-    }
-    return res.status(200).json({
-      success: true,
-      isFallback: true,
-      routine: validatedFallback,
+    console.error('Unexpected error in handleGenerateWorkout:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno ao processar a requisição.',
     });
   }
 }
 
-app.post('/api/gemini/generate-workout', handleGenerateWorkout);
+app.post('/api/gemini/generate-workout', rateLimiter, handleGenerateWorkout);
 
 export function generateProfileFallback(
   focus: string,

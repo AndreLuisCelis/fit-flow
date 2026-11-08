@@ -5,6 +5,11 @@ import {
   generateProfileFallback,
   geminiClient,
   handleGenerateWorkout,
+  GEMINI_MAX_CONCURRENT,
+  getGeminiConcurrentRequests,
+  getRateLimitKey,
+  resetRateLimitForTesting,
+  setGeminiTimeoutForTesting,
 } from '../server';
 import { validateGeneratedWorkout } from './utils/workoutPersonalization';
 import { TrainingEquipment } from './types/profile';
@@ -303,3 +308,139 @@ test('rotas do Gemini', async (t) => {
     assert.ok(body.message);
   });
 });
+
+test('protecao do endpoint Gemini contra abuso', async (t) => {
+  t.beforeEach(() => {
+    resetRateLimitForTesting();
+  });
+
+  t.afterEach(() => {
+    resetRateLimitForTesting();
+  });
+
+  await t.test('limite de concorrencia recusa requisicao quando atingir GEMINI_MAX_CONCURRENT', async () => {
+    let unblock: () => void = () => {};
+    const hangingPromise = new Promise<{ text: string }>((resolve) => {
+      unblock = () => resolve({
+        text: JSON.stringify({
+          title: 'Concorrente',
+          category: 'Full Body',
+          targetDurationMinutes: 45,
+          difficulty: 'Beginner',
+          targetMuscles: ['chest'],
+          xpReward: 100,
+          coachingNotes: 'Ok',
+          exercises: [{
+            name: 'Flexão',
+            primaryMuscle: 'chest',
+            category: 'bodyweight',
+            defaultWeight: 0,
+            defaultReps: 10,
+            setsCount: 2,
+            targetRestSeconds: 60,
+            tempo: '2-0-1-0',
+            notes: 'ok',
+          }],
+        }),
+      });
+    });
+
+    const mockClient = {
+      models: {
+        generateContent: async () => hangingPromise,
+      },
+    };
+
+    // Inicia GEMINI_MAX_CONCURRENT requisições concorrentes
+    const inFlight = [];
+    for (let i = 0; i < GEMINI_MAX_CONCURRENT; i++) {
+      inFlight.push(invokeRoute(baseRequestBody, mockClient));
+    }
+
+    // Espera microtask para garantir que as requisições entraram
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(getGeminiConcurrentRequests(), GEMINI_MAX_CONCURRENT);
+
+    // Próxima requisição deve ser recusada com HTTP 503 ou 429
+    const rejectedRes = await invokeRoute(baseRequestBody, mockClient);
+    assert.ok(
+      rejectedRes.statusCode === 503 || rejectedRes.statusCode === 429,
+      `deve retornar 503 ou 429, recebido: ${rejectedRes.statusCode}`,
+    );
+    const body = rejectedRes.body as { success?: boolean; message?: string };
+    assert.equal(body.success, false);
+    assert.ok(/concorrência|simultâneas|sobrecarregado/i.test(body.message || ''));
+
+    // Libera as requisições pendentes
+    unblock();
+    await Promise.all(inFlight);
+
+    // Garante decremento obrigatório em finally
+    assert.equal(getGeminiConcurrentRequests(), 0);
+  });
+
+  await t.test('decrementar contador de concorrencia mesmo quando ocorrer erro ou rejeicao', async () => {
+    const errorClient = {
+      models: {
+        generateContent: async () => { throw new Error('Falha no modelo'); },
+      },
+    };
+
+    await invokeRoute(baseRequestBody, errorClient);
+    assert.equal(getGeminiConcurrentRequests(), 0);
+  });
+
+  await t.test('timeout efetivo cancela a chamada Gemini e retorna erro controlado sem vazar detalhes internos', async () => {
+    let receivedSignal: AbortSignal | undefined;
+    setGeminiTimeoutForTesting(50); // timeout rápido para o teste
+
+    const hangingClient = {
+      models: {
+        generateContent: async (args: any) => {
+          receivedSignal = args?.config?.abortSignal;
+          return new Promise<never>(() => {
+            // Nunca resolve, espera o timeout disparar
+          });
+        },
+      },
+    };
+
+    const res = await invokeRoute(baseRequestBody, hangingClient);
+    assert.equal(res.statusCode, 504);
+    const body = res.body as { success?: boolean; message?: string; stack?: unknown };
+    assert.equal(body.success, false);
+    assert.equal(body.stack, undefined);
+    assert.ok(/tempo limite/i.test(body.message || ''));
+    // Garante que o AbortSignal foi acionado para cancelar a requisição subjacente
+    assert.ok(receivedSignal?.aborted, 'AbortSignal deve ter sido acionado');
+    assert.equal(getGeminiConcurrentRequests(), 0);
+  });
+
+  await t.test('getRateLimitKey identifica corretamente o IP do cliente atras do proxy da Vercel', () => {
+    // 1. x-real-ip fornecido pelo edge da Vercel
+    const reqVercel = {
+      headers: {
+        'x-real-ip': '203.0.113.195',
+        'x-forwarded-for': '198.51.100.1, 10.0.0.1',
+      },
+      ip: '10.0.0.1',
+    } as any;
+    assert.equal(getRateLimitKey(reqVercel), '203.0.113.195');
+
+    // 2. req.ip pelo trust proxy
+    const reqProxy = {
+      headers: {},
+      ip: '198.51.100.42',
+    } as any;
+    assert.equal(getRateLimitKey(reqProxy), '198.51.100.42');
+
+    // 3. Primeiro IP de x-forwarded-for caso x-real-ip não exista
+    const reqForwarded = {
+      headers: {
+        'x-forwarded-for': '192.0.2.1, 10.0.0.2',
+      },
+    } as any;
+    assert.equal(getRateLimitKey(reqForwarded), '192.0.2.1');
+  });
+});
+
