@@ -316,9 +316,8 @@ test('a função Vercel atende o endpoint público e sua rota interna usando o h
   const previousClient = geminiClient.current;
   geminiClient.current = null;
   const testApp = express();
-  testApp.use(express.json());
-  testApp.post('/api/gemini/generate-workout', vercelWorkoutHandler);
-  testApp.post('/api/generate-workout', vercelWorkoutHandler);
+  testApp.all('/api/gemini/generate-workout', vercelWorkoutHandler);
+  testApp.all('/api/generate-workout', vercelWorkoutHandler);
   const server = createServer(testApp);
 
   try {
@@ -339,6 +338,44 @@ test('a função Vercel atende o endpoint público e sua rota interna usando o h
       assert.equal(body.isFallback, true);
       assert.ok(validateGeneratedWorkout(body.routine, ['bodyweight']));
     }
+
+    // Valida recusa de métodos que não sejam POST
+    const getResponse: Response = await fetch(`http://127.0.0.1:${address.port}/api/gemini/generate-workout`, {
+      method: 'GET',
+    });
+    assert.equal(getResponse.status, 405);
+    const getBody = await getResponse.json() as { success: boolean; message: string };
+    assert.equal(getBody.success, false);
+
+    // Valida preflight OPTIONS
+    const optionsResponse: Response = await fetch(`http://127.0.0.1:${address.port}/api/gemini/generate-workout`, {
+      method: 'OPTIONS',
+    });
+    assert.equal(optionsResponse.status, 204);
+
+    // Valida execução quando req.body já vem pré-parseado pelo runtime serverless da Vercel
+    const preParsedReq = {
+      method: 'POST',
+      body: baseRequestBody,
+      headers: { 'x-real-ip': '1.2.3.4' },
+    } as any;
+    let resCode = 0;
+    let resData: any = null;
+    const preParsedRes = {
+      status: (code: number) => {
+        resCode = code;
+        return preParsedRes;
+      },
+      json: (data: any) => {
+        resData = data;
+        return preParsedRes;
+      },
+    } as any;
+    vercelWorkoutHandler(preParsedReq, preParsedRes);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(resCode, 200);
+    assert.equal(resData?.success, true);
+    assert.equal(resData?.isFallback, true);
   } finally {
     geminiClient.current = previousClient;
     await new Promise<void>((resolve, reject) => {
