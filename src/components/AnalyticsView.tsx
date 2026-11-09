@@ -234,8 +234,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ completedSessions,
         {progressionData.length === 0 ? (
           <EmptyState>
             {language === 'pt'
-              ? 'Sem séries reais com carga e repetições registradas para este exercício.'
-              : 'No real sets with recorded load and reps for this exercise.'}
+              ? 'Sem séries reais com carga e repetições registradas para este exercício. Inicie um treino, registre as séries e conclua/salve a sessão para gerar métricas.'
+              : 'No real sets with recorded load and reps for this exercise. Start a workout, record sets and complete/save the session to generate metrics.'}
           </EmptyState>
         ) : (
           <div className="w-full h-72 sm:h-80 pt-2 pb-1">
@@ -410,7 +410,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ completedSessions,
           ))}
           {realSessions.length === 0 && (
             <EmptyState>
-              {language === 'pt' ? 'Nenhuma sessão real registrada.' : 'No real sessions have been recorded.'}
+              {language === 'pt'
+                ? 'Nenhuma sessão real registrada. Inicie um treino, registre as séries e conclua/salve a sessão para gerar métricas.'
+                : 'No real sessions have been recorded. Start a workout, record sets and complete/save the session to generate metrics.'}
             </EmptyState>
           )}
         </div>
