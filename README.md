@@ -21,6 +21,8 @@ npm run dev
 
 O servidor local fica em `http://localhost:3000`. Para habilitar geração com Gemini, configure `GEMINI_API_KEY` em `.env`; sem a chave, a aplicação usa o mecanismo local quando houver exercícios compatíveis.
 
+Na Vercel, a rota `POST /api/gemini/generate-workout` é encaminhada por `vercel.json` à função raiz `api/generate-workout.ts`, que reutiliza o handler Express. Configure `GEMINI_API_KEY` nas variáveis de ambiente do projeto e faça um novo deploy para habilitar a geração com Gemini; sem essa variável, a função retorna a rotina de fallback local.
+
 ## Verificações
 
 ```bash

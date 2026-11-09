@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import test from 'node:test';
+import vercelWorkoutHandler from '../api/generate-workout';
 import {
   generateFallbackRoutine,
   generateProfileFallback,
@@ -309,6 +311,37 @@ test('rotas do Gemini', async (t) => {
   });
 });
 
+test('a função Vercel atende o endpoint público e sua rota interna usando o handler Express compartilhado', async () => {
+  const previousClient = geminiClient.current;
+  geminiClient.current = null;
+  const server = createServer(vercelWorkoutHandler);
+
+  try {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+
+    for (const route of ['/api/gemini/generate-workout', '/api/generate-workout']) {
+      const apiResponse: Response = await fetch(`http://127.0.0.1:${address.port}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(baseRequestBody),
+      });
+
+      assert.equal(apiResponse.status, 200);
+      const body = await apiResponse.json() as { success?: boolean; isFallback?: boolean; routine?: unknown };
+      assert.equal(body.success, true);
+      assert.equal(body.isFallback, true);
+      assert.ok(validateGeneratedWorkout(body.routine, ['bodyweight']));
+    }
+  } finally {
+    geminiClient.current = previousClient;
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
+});
+
 test('protecao do endpoint Gemini contra abuso', async (t) => {
   t.beforeEach(() => {
     resetRateLimitForTesting();
@@ -443,4 +476,3 @@ test('protecao do endpoint Gemini contra abuso', async (t) => {
     assert.equal(getRateLimitKey(reqForwarded), '192.0.2.1');
   });
 });
-
