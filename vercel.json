@@ -5,5 +5,10 @@
       "source": "/api/gemini/generate-workout",
       "destination": "/api/generate-workout"
     }
-  ]
+  ],
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 30
+    }
+  }
 }

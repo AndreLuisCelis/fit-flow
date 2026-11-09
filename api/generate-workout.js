@@ -1,5 +1,5 @@
 // src/server/workoutService.ts
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 // src/data/presetRoutines.ts
 var EXERCISE_GUIDE = {
@@ -982,8 +982,9 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1\u2013
           contents: prompt,
           config: {
             responseMimeType: "application/json",
-            temperature: 0.9,
-            topP: 0.95,
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.LOW
+            },
             abortSignal: abortController.signal
           }
         }),

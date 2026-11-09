@@ -1,5 +1,5 @@
 import express from 'express';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { Exercise } from '../types/workout';
 import { ExperienceLevel, ProfileGoal, TrainingEquipment } from '../types/profile';
 import { EXERCISE_DATABASE } from '../data/presetRoutines';
@@ -257,8 +257,9 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
           contents: prompt,
           config: {
             responseMimeType: 'application/json',
-            temperature: 0.9,
-            topP: 0.95,
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.LOW,
+            },
             abortSignal: abortController.signal,
           },
         }),
