@@ -24,7 +24,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-export { app };
 const PORT = Number(process.env.PORT) || 3000;
 
 // Habilita proxy reverso para identificar o IP correto do cliente atrás da Vercel / Nginx
@@ -330,9 +329,7 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
   }
 }
 
-const generateWorkoutHandlers = [rateLimiter, handleGenerateWorkout] as const;
-app.post('/api/gemini/generate-workout', ...generateWorkoutHandlers);
-app.post('/api/generate-workout', ...generateWorkoutHandlers);
+app.post('/api/gemini/generate-workout', rateLimiter, handleGenerateWorkout);
 
 export function generateProfileFallback(
   focus: string,

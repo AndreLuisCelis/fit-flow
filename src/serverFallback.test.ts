@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import express from 'express';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import vercelWorkoutHandler from '../api/generate-workout';
@@ -314,7 +315,11 @@ test('rotas do Gemini', async (t) => {
 test('a função Vercel atende o endpoint público e sua rota interna usando o handler Express compartilhado', async () => {
   const previousClient = geminiClient.current;
   geminiClient.current = null;
-  const server = createServer(vercelWorkoutHandler);
+  const testApp = express();
+  testApp.use(express.json());
+  testApp.post('/api/gemini/generate-workout', vercelWorkoutHandler);
+  testApp.post('/api/generate-workout', vercelWorkoutHandler);
+  const server = createServer(testApp);
 
   try {
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
