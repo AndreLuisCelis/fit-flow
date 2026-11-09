@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { createServer } from 'node:http';
 import test from 'node:test';
-import vercelWorkoutHandler from '../api/generate-workout';
+import vercelWorkoutHandler from '../api/generate-workout.js';
 import {
   generateFallbackRoutine,
   generateProfileFallback,
