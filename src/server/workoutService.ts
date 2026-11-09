@@ -236,7 +236,7 @@ Respond ONLY with valid JSON (no markdown formatting, no code block backticks) a
     }
   ]
 }
-Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 unique target muscles, exactly matching the primaryMuscle values used by the exercises. Include 1–10 exercises. defaultWeight must be from 0 to 500 kg; defaultReps an integer from 1 to 30; setsCount an integer from 1 to 12; targetRestSeconds an integer from 0 to 600. Total sets must not exceed two thirds of targetDurationMinutes (rounded down). Use only declared fields; do not add fields.
+Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 unique target muscles, exactly matching the primaryMuscle values used by the exercises. Include 4–5 focused exercises (do not exceed 5). Keep coachingNotes to 1 concise sentence. defaultWeight must be from 0 to 500 kg; defaultReps an integer from 1 to 30; setsCount an integer from 1 to 12; targetRestSeconds an integer from 0 to 600. Total sets must not exceed two thirds of targetDurationMinutes (rounded down). Use only declared fields; do not add fields.
 `;
 
       const timeoutPromise = new Promise<never>((_, reject) => {
