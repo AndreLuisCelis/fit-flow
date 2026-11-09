@@ -7,4 +7,5 @@ coverage/
 .env*
 !.env.example
 bun.lock
+test_output.txt
 

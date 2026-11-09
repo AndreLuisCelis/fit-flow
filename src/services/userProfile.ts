@@ -23,11 +23,24 @@ export type UserProfileValidationResult =
   | { valid: true; profile: UserProfile }
   | { valid: false; errors: UserProfileErrors };
 
+const memoryFallbackMap = new Map<string, string>();
+const inMemoryFallbackStorage: KeyValueStorage = {
+  getItem: (key: string) => memoryFallbackMap.get(key) ?? null,
+  setItem: (key: string, value: string) => { memoryFallbackMap.set(key, value); },
+};
+
 function getBrowserStorage(): KeyValueStorage {
   if (typeof window === 'undefined') {
-    throw new Error('Armazenamento local indisponível.');
+    return inMemoryFallbackStorage;
   }
-  return window.localStorage;
+  try {
+    const testKey = '__storage_test__';
+    window.localStorage.setItem(testKey, testKey);
+    window.localStorage.removeItem(testKey);
+    return window.localStorage;
+  } catch {
+    return inMemoryFallbackStorage;
+  }
 }
 
 function optionalNumber(value: unknown): number | undefined | null {
