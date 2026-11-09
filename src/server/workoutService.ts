@@ -251,17 +251,22 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
         }, geminiTimeoutMs);
       });
 
+      const modelName = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+      const modelConfig: Record<string, unknown> = {
+        responseMimeType: 'application/json',
+        abortSignal: abortController.signal,
+      };
+      if (modelName.includes('3.') || modelName.includes('gemini-4')) {
+        modelConfig.thinkingConfig = {
+          thinkingLevel: ThinkingLevel.LOW,
+        };
+      }
+
       const response = await Promise.race([
         geminiClient.current.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: modelName,
           contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            thinkingConfig: {
-              thinkingLevel: ThinkingLevel.LOW,
-            },
-            abortSignal: abortController.signal,
-          },
+          config: modelConfig as any,
         }),
         timeoutPromise,
       ]);
