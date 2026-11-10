@@ -1,6 +1,6 @@
 {
-  "name": "Kinetic Volt Performance",
-  "description": "High-octane athletic strength and hypertrophy tracker with cyber-kinetic telemetry, real-time set logging, and gamified progressive overload.",
+  "name": "FitFlow - AI Workout & Progressive Overload Tracker",
+  "description": "High-performance hypertrophy and strength workout tracker PWA with AI routine generation, progressive overload telemetry, offline-first IndexedDB storage, and gamified athletic progression.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
