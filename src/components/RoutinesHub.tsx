@@ -15,7 +15,8 @@ import {
   Filter,
   Database,
   Wifi,
-  WifiOff
+  WifiOff,
+  RotateCcw
 } from 'lucide-react';
 import { WorkoutRoutine, Exercise } from '../types/workout';
 import { UserProfile } from '../types/profile';
@@ -64,6 +65,18 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
   const [generatedRoutine, setGeneratedRoutine] = useState<WorkoutRoutine | null>(null);
   const [isAiOnlineSource, setIsAiOnlineSource] = useState<boolean>(false);
   const [generationError, setGenerationError] = useState<string>('');
+
+  const handleOpenAiModal = () => {
+    setGeneratedRoutine(null);
+    setGenerationError('');
+    setShowAiModal(true);
+  };
+
+  const handleCloseAiModal = () => {
+    setShowAiModal(false);
+    setGeneratedRoutine(null);
+    setGenerationError('');
+  };
 
   // Load routines from IndexedDB on mount
   useEffect(() => {
@@ -395,7 +408,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
           {/* AI Generator CTA Button */}
           <button
             type="button"
-            onClick={() => setShowAiModal(true)}
+            onClick={handleOpenAiModal}
             className="flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-full bg-gradient-to-r from-[#1E293B] to-[#0F172A] border border-[#38BDF8]/60 text-white hover:border-[#38BDF8] shadow-glow-cyan transition-all text-xs font-bold uppercase tracking-wider shrink-0 active:scale-95"
           >
             <Sparkles className="w-4 h-4 text-[#38BDF8] animate-pulse" />
@@ -567,7 +580,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowAiModal(false)}
+                onClick={handleCloseAiModal}
                 className="text-slate-400 hover:text-white text-xs font-mono-numbers uppercase"
               >
                 ✕ {language === 'pt' ? 'Fechar' : 'Close'}
@@ -609,7 +622,11 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                     <button
                       key={f}
                       type="button"
-                      onClick={() => setAiFocus(f)}
+                      onClick={() => {
+                        setAiFocus(f);
+                        setGeneratedRoutine(null);
+                        setGenerationError('');
+                      }}
                       className={`p-2.5 rounded-xl text-xs font-mono-numbers font-semibold border text-center transition-all ${
                         aiFocus === f
                           ? 'border-[#38BDF8] bg-[#38BDF8]/15 text-[#38BDF8] shadow-glow-cyan'
@@ -634,7 +651,11 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                     <button
                       key={dur}
                       type="button"
-                      onClick={() => setAiDuration(dur)}
+                      onClick={() => {
+                        setAiDuration(dur);
+                        setGeneratedRoutine(null);
+                        setGenerationError('');
+                      }}
                       className={`p-2 rounded-xl text-xs font-mono-numbers font-semibold border text-center transition-all ${
                         aiDuration === dur
                           ? 'border-[#CCFF00] bg-[#CCFF00]/15 text-[#CCFF00]'
@@ -662,7 +683,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                     machine: language === 'pt' ? 'Máquinas' : 'Machines',
                     bands: language === 'pt' ? 'Elásticos' : 'Resistance bands',
                   }[equipment])).join(' · ')}
-                  <button type="button" onClick={() => { setShowAiModal(false); onOpenProfile(); }} className="ml-2 font-semibold text-[#38BDF8] underline">
+                  <button type="button" onClick={() => { handleCloseAiModal(); onOpenProfile(); }} className="ml-2 font-semibold text-[#38BDF8] underline">
                     {language === 'pt' ? 'Editar no perfil' : 'Edit profile'}
                   </button>
                 </p>
@@ -704,17 +725,30 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                 <h4 className="text-sm font-bold text-white mb-3">
                   {language === 'pt' ? generatedRoutine.titlePt : generatedRoutine.title}
                 </h4>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAiModal(false);
-                    onStartRoutine(generatedRoutine);
-                  }}
-                  className="w-full h-12 rounded-full bg-[#CCFF00] text-[#0A0F1D] font-bold text-xs uppercase tracking-wider shadow-glow-volt flex items-center justify-center gap-2"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>{language === 'pt' ? 'Iniciar Treino Agora' : 'Launch Workout Now'}</span>
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCloseAiModal();
+                      onStartRoutine(generatedRoutine);
+                    }}
+                    className="w-full h-12 rounded-full bg-[#CCFF00] text-[#0A0F1D] font-bold text-xs uppercase tracking-wider shadow-glow-volt flex items-center justify-center gap-2 hover:brightness-105 active:scale-95 transition-all"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>{language === 'pt' ? 'Iniciar Treino Agora' : 'Launch Workout Now'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGeneratedRoutine(null);
+                      setGenerationError('');
+                    }}
+                    className="w-full h-11 rounded-full border border-slate-700 bg-[#0F172A] hover:bg-[#1E293B] text-slate-300 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{language === 'pt' ? 'Gerar Outro Treino' : 'Generate Another Routine'}</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
