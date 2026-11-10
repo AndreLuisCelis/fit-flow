@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Trophy, Flame, Zap, Dumbbell, Clock, Check, ArrowRight, Share2 } from 'lucide-react';
+import { Trophy, Flame, Zap, Dumbbell, Clock, Check, ArrowRight, Share2, X } from 'lucide-react';
 import { CompletedSessionSummary } from '../types/workout';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
@@ -19,15 +19,21 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
   language,
   unit,
 }) => {
+  const [copiedToast, setCopiedToast] = useState<boolean>(false);
+
   useEffect(() => {
     if (isOpen) {
       soundManager.playLevelUp();
-      confetti({
-        particleCount: 100,
-        spread: 80,
-        origin: { y: 0.5 },
-        colors: ['#CCFF00', '#FF6B00', '#38BDF8', '#8B5CF6'],
-      });
+      try {
+        confetti({
+          particleCount: 100,
+          spread: 80,
+          origin: { y: 0.5 },
+          colors: ['#CCFF00', '#FF6B00', '#38BDF8', '#8B5CF6'],
+        });
+      } catch (err) {
+        console.warn('Confetti animation failed:', err);
+      }
     }
   }, [isOpen]);
 
@@ -39,7 +45,6 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
   };
 
   const minutes = Math.round(summary.durationSeconds / 60);
-  const [copiedToast, setCopiedToast] = useState<boolean>(false);
 
   const handleShare = async () => {
     soundManager.playTick();
@@ -81,8 +86,26 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-[#0F172A] border-2 border-[#CCFF00]/50 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md my-auto max-h-[90vh] overflow-y-auto bg-[#0F172A] border-2 border-[#CCFF00]/50 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center"
+      >
+        {/* Close button */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={language === 'pt' ? 'Fechar resumo' : 'Close summary'}
+          className="absolute top-4 right-4 w-9 h-9 rounded-full bg-[#1E293B] hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
         {/* Glow ambient circle */}
         <div className="w-20 h-20 rounded-full bg-[#CCFF00]/15 border-2 border-[#CCFF00] flex items-center justify-center text-[#CCFF00] mb-4 shadow-glow-volt">
           <Trophy className="w-10 h-10 stroke-[2.5]" />
@@ -193,7 +216,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
             onClick={onClose}
             className="w-full min-h-[50px] rounded-full bg-[#CCFF00] hover:brightness-110 active:scale-[0.98] text-[#0A0F1D] font-bold text-sm uppercase tracking-wider shadow-glow-volt flex items-center justify-center gap-2 transition-all font-mono-numbers"
           >
-            <span>{language === 'pt' ? 'Salvar & Voltar ao Painel' : 'Save & Return to Dashboard'}</span>
+            <span>{language === 'pt' ? 'Salvar & Voltar ao Início' : 'Save & Return to Home'}</span>
             <ArrowRight className="w-4 h-4 stroke-[3]" />
           </button>
         </div>

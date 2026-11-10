@@ -477,6 +477,7 @@ export default function App() {
       setLastSummary(summary);
       setShowSummaryModal(true);
       setActiveSession(null);
+      setCurrentTab('routines');
       setRestTimerOpen(false);
       setRestTimerRunning(false);
     } catch (err) {
@@ -744,7 +745,7 @@ export default function App() {
         summary={lastSummary}
         onClose={() => {
           setShowSummaryModal(false);
-          setCurrentTab('analytics');
+          setCurrentTab('routines');
         }}
         language={language}
         unit={unit}
