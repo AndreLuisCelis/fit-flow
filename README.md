@@ -12,21 +12,28 @@ Os dados do perfil ficam no `localStorage`; rotinas, exercícios e histórico fi
 
 ## Executar localmente
 
-**Pré-requisitos:** Node.js e npm.
+**Pré-requisitos:** Node.js e pnpm (ou Corepack habilitado).
 
 ```bash
-npm install
-npm run dev
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev
 ```
 
-O servidor local fica em `http://localhost:3000`. Para habilitar geração com Gemini, configure `GEMINI_API_KEY` em `.env`; sem a chave, a aplicação usa o mecanismo local quando houver exercícios compatíveis.
+O servidor local utiliza a porta 3000 por padrão (`http://localhost:3000`), conforme definido em `server.ts` (ou a porta informada na variável `PORT`). Para habilitar geração com Gemini, configure `GEMINI_API_KEY` em `.env`; sem a chave, a aplicação usa o mecanismo local quando houver exercícios compatíveis.
 
-Na Vercel, a rota `POST /api/gemini/generate-workout` é encaminhada por `vercel.json` à função raiz `api/generate-workout.ts`, que reutiliza o handler Express. Configure `GEMINI_API_KEY` nas variáveis de ambiente do projeto e faça um novo deploy para habilitar a geração com Gemini; sem essa variável, a função retorna a rotina de fallback local.
+## Arquitetura da API e Deploy na Vercel
+
+Em ambiente Vercel:
+- A rota pública `POST /api/gemini/generate-workout` é encaminhada pelo rewrite definido em `vercel.json` para o handler Serverless compilado `/api/generate-workout` (`api/generate-workout.js`).
+- O script de build gera os artefatos `api/generate-workout.js` e `api/gemini/generate-workout.js` a partir de `src/server/apiHandler.ts`, mantendo a paridade de rotas e o handler funcional.
+- Configure `GEMINI_API_KEY` nas variáveis de ambiente do projeto na Vercel e faça um novo deploy para habilitar a geração com Gemini; sem essa variável, a função retorna a rotina de fallback local.
 
 ## Verificações
 
+Execute as verificações do projeto com pnpm/Corepack:
+
 ```bash
-npm test
-npm run lint
-npm run build
+corepack pnpm test
+corepack pnpm lint
+corepack pnpm build
 ```
