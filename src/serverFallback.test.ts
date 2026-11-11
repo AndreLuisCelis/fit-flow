@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import express from 'express';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import vercelWorkoutHandler from '../api/generate-workout.js';
+import { MAX_PAYLOAD_BYTES } from './server/apiHandler';
 import {
   generateFallbackRoutine,
   generateProfileFallback,
@@ -516,5 +518,265 @@ test('protecao do endpoint Gemini contra abuso', async (t) => {
       },
     } as any;
     assert.equal(getRateLimitKey(reqForwarded), '192.0.2.1');
+  });
+});
+
+test('validacao uniforme do limite de payload de 10 KB na API Vercel', async (t) => {
+  t.beforeEach(() => {
+    resetRateLimitForTesting();
+  });
+
+  t.afterEach(() => {
+    resetRateLimitForTesting();
+  });
+
+  function createMockRes() {
+    let statusCode = 200;
+    let body: any = null;
+    const res: any = {
+      statusCode,
+      status(code: number) {
+        statusCode = code;
+        res.statusCode = code;
+        return res;
+      },
+      json(data: any) {
+        body = data;
+        res.body = data;
+        return res;
+      },
+      setHeader() {},
+      end(data?: string) {
+        if (data && body === null) {
+          try {
+            body = JSON.parse(data);
+          } catch {
+            body = data;
+          }
+        }
+        res.body = body;
+      },
+      get code() {
+        return res.statusCode ?? statusCode;
+      },
+      get data() {
+        return res.body ?? body;
+      },
+    };
+    return res;
+  }
+
+  await t.test('body pre-interpretado dentro do limite: aceito', async () => {
+    const req = {
+      method: 'POST',
+      body: baseRequestBody,
+      headers: {},
+    } as any;
+    const res = createMockRes();
+
+    vercelWorkoutHandler(req, res);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(res.code, 200);
+    assert.equal(res.data?.success, true);
+  });
+
+  await t.test('body pre-interpretado acima de 10 KB: rejeitado com 413', async () => {
+    const hugeBody = {
+      ...baseRequestBody,
+      overflow: 'x'.repeat(12000),
+    };
+    const req = {
+      method: 'POST',
+      body: hugeBody,
+      headers: {},
+    } as any;
+    const res = createMockRes();
+
+    vercelWorkoutHandler(req, res);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(res.code, 413);
+    assert.equal(res.data?.success, false);
+    assert.equal(res.data?.message, 'Corpo da requisição excede o limite permitido.');
+  });
+
+  await t.test('body recebido como JSON string: tratado corretamente', async () => {
+    // 1. JSON string dentro do limite
+    const validJsonReq = {
+      method: 'POST',
+      body: JSON.stringify(baseRequestBody),
+      headers: {},
+    } as any;
+    const resValid = createMockRes();
+
+    vercelWorkoutHandler(validJsonReq, resValid);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(resValid.code, 200);
+    assert.equal(resValid.data?.success, true);
+
+    // 2. JSON string acima de 10 KB
+    const overLimitJsonReq = {
+      method: 'POST',
+      body: JSON.stringify({ ...baseRequestBody, overflow: 'y'.repeat(12000) }),
+      headers: {},
+    } as any;
+    const resOver = createMockRes();
+
+    vercelWorkoutHandler(overLimitJsonReq, resOver);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(resOver.code, 413);
+    assert.equal(resOver.data?.success, false);
+    assert.equal(resOver.data?.message, 'Corpo da requisição excede o limite permitido.');
+  });
+
+  await t.test('payload com caracteres multibyte: tamanho calculado corretamente em UTF-8', async () => {
+    // '🔥' ocupa 4 bytes em UTF-8, mas tem tamanho 2 em UTF-16 (surrogate pair)
+    // 3.000 emojis '🔥' têm string.length = 6000 (< 10240 caracteres),
+    // porém o tamanho real em UTF-8 é 12.000 bytes (> 10240 bytes)
+    const multibyteBody = {
+      ...baseRequestBody,
+      notes: '🔥'.repeat(3000),
+    };
+    const serialized = JSON.stringify(multibyteBody);
+    assert.ok(serialized.length < MAX_PAYLOAD_BYTES, 'comprimento de caracteres menor que o limite');
+    assert.ok(Buffer.byteLength(serialized, 'utf8') > MAX_PAYLOAD_BYTES, 'tamanho em bytes maior que 10 KB');
+
+    const req = {
+      method: 'POST',
+      body: multibyteBody,
+      headers: {},
+    } as any;
+    const res = createMockRes();
+
+    vercelWorkoutHandler(req, res);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(res.code, 413, 'payload multibyte que excede 10 KB deve ser recusado com 413');
+    assert.equal(res.data?.success, false);
+    assert.equal(res.data?.message, 'Corpo da requisição excede o limite permitido.');
+  });
+
+  await t.test('payload exatamente no limite: comportamento consistente', async () => {
+    // Constrói payload com exatamente 10240 bytes em UTF-8
+    const baseEmpty = JSON.stringify({ ...baseRequestBody, padding: '' });
+    const neededPadding = MAX_PAYLOAD_BYTES - Buffer.byteLength(baseEmpty, 'utf8');
+    const exactBody = { ...baseRequestBody, padding: 'a'.repeat(neededPadding) };
+    const exactJson = JSON.stringify(exactBody);
+    assert.equal(Buffer.byteLength(exactJson, 'utf8'), MAX_PAYLOAD_BYTES);
+
+    const reqExact = {
+      method: 'POST',
+      body: exactBody,
+      headers: {},
+    } as any;
+    const resExact = createMockRes();
+
+    vercelWorkoutHandler(reqExact, resExact);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(resExact.code, 200, 'payload exatamente com 10240 bytes deve ser aceito');
+    assert.equal(resExact.data?.success, true);
+
+    // 1 byte a mais (10241 bytes) deve ser rejeitado com 413
+    const overByOneBody = { ...baseRequestBody, padding: 'a'.repeat(neededPadding + 1) };
+    const overByOneJson = JSON.stringify(overByOneBody);
+    assert.equal(Buffer.byteLength(overByOneJson, 'utf8'), MAX_PAYLOAD_BYTES + 1);
+
+    const reqOverByOne = {
+      method: 'POST',
+      body: overByOneBody,
+      headers: {},
+    } as any;
+    const resOverByOne = createMockRes();
+
+    vercelWorkoutHandler(reqOverByOne, resOverByOne);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(resOverByOne.code, 413, 'payload com 10241 bytes deve ser recusado com 413');
+    assert.equal(resOverByOne.data?.success, false);
+  });
+
+  await t.test('payload acima do limite nao chega ao gerador Gemini', async () => {
+    let geminiCalled = false;
+    const previousClient = geminiClient.current;
+    geminiClient.current = {
+      models: {
+        generateContent: async () => {
+          geminiCalled = true;
+          return { text: '{}' };
+        },
+      },
+    } as any;
+
+    try {
+      const req = {
+        method: 'POST',
+        body: { ...baseRequestBody, overflow: 'z'.repeat(12000) },
+        headers: {},
+      } as any;
+      const res = createMockRes();
+
+      vercelWorkoutHandler(req, res);
+      await new Promise((r) => setTimeout(r, 20));
+
+      assert.equal(res.code, 413);
+      assert.equal(geminiCalled, false, 'gerador Gemini não deve ser invocado quando payload exceder o limite');
+    } finally {
+      geminiClient.current = previousClient;
+    }
+  });
+
+  await t.test('payload invalido continua recebendo tratamento adequado', async () => {
+    // 1. JSON string com sintaxe corrompida
+    const corruptReq = {
+      method: 'POST',
+      body: '{"focus": "Full Body", corrupted',
+      headers: {},
+    } as any;
+    const resCorrupt = createMockRes();
+
+    vercelWorkoutHandler(corruptReq, resCorrupt);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(resCorrupt.code, 400);
+    assert.equal(resCorrupt.data?.success, false);
+    assert.equal(resCorrupt.data?.message, 'Corpo JSON inválido.');
+
+    // 2. Objeto JSON válido sintaticamente mas com schema inválido (sem campos obrigatórios)
+    const invalidSchemaReq = {
+      method: 'POST',
+      body: { invalidField: 123 },
+      headers: {},
+    } as any;
+    const resInvalidSchema = createMockRes();
+
+    vercelWorkoutHandler(invalidSchemaReq, resInvalidSchema);
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(resInvalidSchema.code, 400);
+    assert.equal(resInvalidSchema.data?.success, false);
+    assert.ok(resInvalidSchema.data?.message);
+  });
+
+  await t.test('requisicao em stream acima de 10 KB e rejeitada durante recepcao de chunks', async () => {
+    const streamReq = new EventEmitter() as any;
+    streamReq.method = 'POST';
+    streamReq.headers = {};
+    const resStream = createMockRes();
+
+    vercelWorkoutHandler(streamReq, resStream);
+
+    // Emite primeiro chunk de 6 KB (aceito)
+    streamReq.emit('data', Buffer.from('a'.repeat(6000), 'utf8'));
+    assert.equal(resStream.code, 200, 'ainda abaixo de 10 KB, status pendente');
+
+    // Emite segundo chunk de 6 KB (total 12 KB, estoura o limite)
+    streamReq.emit('data', Buffer.from('a'.repeat(6000), 'utf8'));
+    assert.equal(resStream.code, 413, 'deve recusar com 413 imediatamente ao exceder 10 KB');
+    assert.equal(resStream.data?.success, false);
+    assert.equal(resStream.data?.message, 'Corpo da requisição excede o limite permitido.');
   });
 });

@@ -1249,6 +1249,7 @@ function generateFallbackRoutine(focus, duration, language) {
 var config = {
   maxDuration: 30
 };
+var MAX_PAYLOAD_BYTES = 10240;
 function generateWorkoutHandler(req, res) {
   if (req.method === "OPTIONS") {
     res.statusCode = 204;
@@ -1299,30 +1300,79 @@ function generateWorkoutHandler(req, res) {
       void handleGenerateWorkout(req, res);
     });
   };
+  const rawContentLength = req.headers?.["content-length"];
+  if (rawContentLength) {
+    const contentLength = Number(Array.isArray(rawContentLength) ? rawContentLength[0] : rawContentLength);
+    if (Number.isFinite(contentLength) && contentLength > MAX_PAYLOAD_BYTES) {
+      sendJson(413, { success: false, message: "Corpo da requisi\xE7\xE3o excede o limite permitido." });
+      return;
+    }
+  }
   if (req.body !== void 0 && req.body !== null) {
+    if (Buffer.isBuffer(req.body)) {
+      if (req.body.byteLength > MAX_PAYLOAD_BYTES) {
+        sendJson(413, { success: false, message: "Corpo da requisi\xE7\xE3o excede o limite permitido." });
+        return;
+      }
+      try {
+        req.body = JSON.parse(req.body.toString("utf8"));
+      } catch {
+        sendJson(400, { success: false, message: "Corpo JSON inv\xE1lido." });
+        return;
+      }
+      executeHandler();
+      return;
+    }
     if (typeof req.body === "string") {
+      if (Buffer.byteLength(req.body, "utf8") > MAX_PAYLOAD_BYTES) {
+        sendJson(413, { success: false, message: "Corpo da requisi\xE7\xE3o excede o limite permitido." });
+        return;
+      }
       try {
         req.body = JSON.parse(req.body);
       } catch {
         sendJson(400, { success: false, message: "Corpo JSON inv\xE1lido." });
         return;
       }
+      executeHandler();
+      return;
+    }
+    let serialized;
+    try {
+      serialized = JSON.stringify(req.body);
+    } catch {
+      sendJson(400, { success: false, message: "Corpo JSON inv\xE1lido." });
+      return;
+    }
+    if (typeof serialized !== "string") {
+      sendJson(400, { success: false, message: "Corpo JSON inv\xE1lido." });
+      return;
+    }
+    if (Buffer.byteLength(serialized, "utf8") > MAX_PAYLOAD_BYTES) {
+      sendJson(413, { success: false, message: "Corpo da requisi\xE7\xE3o excede o limite permitido." });
+      return;
     }
     executeHandler();
     return;
   }
-  let bodyStr = "";
+  let receivedBytes = 0;
+  const chunks = [];
   let exceeded = false;
   req.on("data", (chunk) => {
     if (exceeded) return;
-    bodyStr += chunk.toString();
-    if (bodyStr.length > 10240) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, "utf8");
+    receivedBytes += buf.byteLength;
+    if (receivedBytes > MAX_PAYLOAD_BYTES) {
       exceeded = true;
       sendJson(413, { success: false, message: "Corpo da requisi\xE7\xE3o excede o limite permitido." });
+      return;
     }
+    chunks.push(buf);
   });
   req.on("end", () => {
     if (exceeded) return;
+    const bodyBuffer = Buffer.concat(chunks);
+    const bodyStr = bodyBuffer.toString("utf8");
     if (!bodyStr.trim()) {
       req.body = {};
       executeHandler();
@@ -1342,6 +1392,7 @@ function generateWorkoutHandler(req, res) {
   });
 }
 export {
+  MAX_PAYLOAD_BYTES,
   config,
   generateWorkoutHandler as default
 };
