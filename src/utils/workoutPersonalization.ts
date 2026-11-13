@@ -1,5 +1,5 @@
-import { Exercise, ExerciseMedia, ExerciseMediaType, WorkoutRoutine } from '../types/workout';
-import { EXERCISE_DATABASE } from '../data/presetRoutines';
+import { Exercise, ExerciseMedia, ExerciseMediaStatus, ExerciseMediaType, WorkoutRoutine } from '../types/workout';
+import { EXERCISE_DATABASE } from '../data/exerciseCatalog';
 import {
   EXPERIENCE_LEVELS,
   PROFILE_GOALS,
@@ -85,6 +85,22 @@ export interface GeneratedWorkout {
 export interface ValidateGeneratedWorkoutOptions {
   catalog?: Record<string, Exercise>;
   language?: 'pt' | 'en';
+  /** Deve permanecer false para respostas da IA Gemini; true somente para fallback determinístico local */
+  allowUnpublishedMedia?: boolean;
+}
+
+export interface ExerciseEligibilityStatus {
+  registered: boolean;
+  hasMediaMetadata: boolean;
+  hasPublishedVerifiedMedia: boolean;
+  equipmentCompatible: boolean;
+  eligibleForAi: boolean;
+  reason:
+    | 'eligible'
+    | 'not_registered'
+    | 'missing_media_metadata'
+    | 'media_not_published_or_verified'
+    | 'incompatible_equipment';
 }
 
 export interface ValidatedWorkoutRequest {
@@ -108,7 +124,8 @@ const routineDifficulties: WorkoutRoutine['difficulty'][] = ['Beginner', 'Interm
 const maximumTargetMuscles = 6;
 const maximumExercises = 10;
 const exerciseCategories: Exercise['category'][] = ['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight', 'bands'];
-const exerciseMediaTypes: ExerciseMediaType[] = ['image', 'gif', 'lottie', 'webp', 'mp4', 'webm', 'svg'];
+const exerciseMediaTypes: ExerciseMediaType[] = ['webp', 'avif', 'image', 'svg', 'gif', 'lottie', 'mp4', 'webm'];
+const exerciseMediaStatuses: ExerciseMediaStatus[] = ['planned', 'published', 'missing', 'invalid'];
 const requestFatigueLevels = ['fresh', 'normal', 'fatigued'] as const;
 const requestGoals = ['hypertrophy', 'strength', 'endurance', 'deload'] as const;
 const allowedRoutineFields = ['title', 'category', 'targetDurationMinutes', 'difficulty', 'targetMuscles', 'xpReward', 'coachingNotes', 'exercises'];
@@ -166,23 +183,132 @@ export function isValidExerciseMedia(media: unknown): media is ExerciseMedia {
   if (typeof media.mediaType !== 'string' || !exerciseMediaTypes.includes(media.mediaType as ExerciseMediaType)) return false;
   if (typeof media.assetId !== 'string' || media.assetId.trim().length === 0 || media.assetId.length > 120) return false;
   if (typeof media.version !== 'string' || media.version.trim().length === 0 || media.version.length > 40) return false;
+  if (media.status !== undefined && (typeof media.status !== 'string' || !exerciseMediaStatuses.includes(media.status as ExerciseMediaStatus))) {
+    return false;
+  }
+  if (media.verifiedAt !== undefined && (typeof media.verifiedAt !== 'string' || media.verifiedAt.trim().length === 0 || Number.isNaN(Date.parse(media.verifiedAt)))) {
+    return false;
+  }
+  if (media.source !== undefined && (typeof media.source !== 'string' || media.source.trim().length === 0 || media.source.length > 120)) {
+    return false;
+  }
   return true;
 }
 
-export function hasValidExerciseMedia(exercise: Exercise | undefined | null): boolean {
+/**
+ * Verifica apenas se o exercício possui metadados estruturais de mídia válidos (não implica publicação verificada).
+ */
+export function hasExerciseMediaMetadata(exercise: Exercise | undefined | null): boolean {
   return Boolean(exercise && isValidExerciseMedia(exercise.media));
 }
 
+/**
+ * Verifica se a mídia do exercício está efetivamente publicada no CDN e validada por verificação HTTP.
+ */
+export function hasVerifiedExerciseMedia(exercise: Exercise | undefined | null): boolean {
+  if (!exercise || !isValidExerciseMedia(exercise.media)) return false;
+  return (
+    exercise.media.status === 'published' &&
+    typeof exercise.media.verifiedAt === 'string' &&
+    !Number.isNaN(Date.parse(exercise.media.verifiedAt))
+  );
+}
+
+/**
+ * Alias de segurança: para uso pela IA Gemini, exige mídia publicada e verificada.
+ */
+export function hasValidExerciseMedia(exercise: Exercise | undefined | null): boolean {
+  return hasVerifiedExerciseMedia(exercise);
+}
+
+export function getExerciseEligibilityStatus(
+  exercise: Exercise | undefined | null,
+  availableEquipment?: TrainingEquipment[],
+): ExerciseEligibilityStatus {
+  if (!exercise) {
+    return {
+      registered: false,
+      hasMediaMetadata: false,
+      hasPublishedVerifiedMedia: false,
+      equipmentCompatible: false,
+      eligibleForAi: false,
+      reason: 'not_registered',
+    };
+  }
+
+  const hasMediaMetadata = hasExerciseMediaMetadata(exercise);
+  const hasPublishedVerifiedMedia = hasVerifiedExerciseMedia(exercise);
+  const equipmentCompatible = availableEquipment
+    ? isEquipmentList(availableEquipment) &&
+      isEquipmentAvailable(exercise.category, availableEquipment, exercise.equipmentRequired)
+    : true;
+
+  if (!hasMediaMetadata) {
+    return {
+      registered: true,
+      hasMediaMetadata: false,
+      hasPublishedVerifiedMedia: false,
+      equipmentCompatible,
+      eligibleForAi: false,
+      reason: 'missing_media_metadata',
+    };
+  }
+
+  if (!hasPublishedVerifiedMedia) {
+    return {
+      registered: true,
+      hasMediaMetadata: true,
+      hasPublishedVerifiedMedia: false,
+      equipmentCompatible,
+      eligibleForAi: false,
+      reason: 'media_not_published_or_verified',
+    };
+  }
+
+  if (!equipmentCompatible) {
+    return {
+      registered: true,
+      hasMediaMetadata: true,
+      hasPublishedVerifiedMedia: true,
+      equipmentCompatible: false,
+      eligibleForAi: false,
+      reason: 'incompatible_equipment',
+    };
+  }
+
+  return {
+    registered: true,
+    hasMediaMetadata: true,
+    hasPublishedVerifiedMedia: true,
+    equipmentCompatible: true,
+    eligibleForAi: true,
+    reason: 'eligible',
+  };
+}
+
+/**
+ * Retorna exclusivamente exercícios compatíveis que possuem mídia publicada e verificada (elegíveis para seleção pelo Gemini).
+ */
 export function getEligibleCatalogExercises(
   availableEquipment: TrainingEquipment[],
   catalog: Record<string, Exercise> = EXERCISE_DATABASE,
 ): Exercise[] {
   if (!isEquipmentList(availableEquipment)) return [];
   return Object.values(catalog)
-    .filter((exercise) =>
-      hasValidExerciseMedia(exercise) &&
-      isEquipmentAvailable(exercise.category, availableEquipment, exercise.equipmentRequired),
-    )
+    .filter((exercise) => getExerciseEligibilityStatus(exercise, availableEquipment).eligibleForAi)
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+/**
+ * Retorna todos os exercícios cadastrados no catálogo compatíveis com os equipamentos disponíveis (para fallback determinístico local).
+ */
+export function getCompatibleCatalogExercises(
+  availableEquipment: TrainingEquipment[],
+  catalog: Record<string, Exercise> = EXERCISE_DATABASE,
+): Exercise[] {
+  if (!isEquipmentList(availableEquipment)) return [];
+  return Object.values(catalog)
+    .filter((exercise) => isEquipmentAvailable(exercise.category, availableEquipment, exercise.equipmentRequired))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -251,6 +377,7 @@ export function validateGeneratedWorkout(
 ): GeneratedWorkout | null {
   const catalog = options.catalog ?? EXERCISE_DATABASE;
   const language = options.language ?? 'pt';
+  const allowUnpublishedMedia = options.allowUnpublishedMedia === true;
 
   if (!isRecord(value) || !hasOnlyFields(value, allowedRoutineFields) || !isEquipmentList(availableEquipment)) return null;
   const candidate = value;
@@ -289,8 +416,8 @@ export function validateGeneratedWorkout(
       return null;
     }
 
-    // Exercício deve possuir imagem/mídia válida para elegibilidade pela IA
-    if (!hasValidExerciseMedia(catalogExercise)) {
+    // Para seleção por IA, o exercício deve possuir mídia publicada e verificada
+    if (!allowUnpublishedMedia && !hasValidExerciseMedia(catalogExercise)) {
       return null;
     }
 

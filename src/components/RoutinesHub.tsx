@@ -162,7 +162,10 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
 
         if (response.ok) {
           const data = await response.json();
-          const r = validateGeneratedWorkout(data.routine, profile.equipment, { language });
+          const r = validateGeneratedWorkout(data.routine, profile.equipment, {
+            language,
+            allowUnpublishedMedia: Boolean(data.isFallback),
+          });
           if (r) {
             const newRoutine: WorkoutRoutine = {
               id: `gemini-routine-${Date.now()}`,
@@ -288,7 +291,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
         fallbackCandidate,
         profile.equipment,
         profile.experience,
-        { language },
+        { language, allowUnpublishedMedia: true },
       );
       if (!validatedFallback) {
         setGenerationError(language === 'pt'
