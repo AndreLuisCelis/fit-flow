@@ -188,7 +188,10 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       }
 
       const data = await response.json();
-      const validatedRoutine = validateGeneratedWorkout(data.routine, selectedEquipments as TrainingEquipment[], { language });
+      const validatedRoutine = validateGeneratedWorkout(data.routine, selectedEquipments as TrainingEquipment[], {
+        language,
+        allowUnpublishedMedia: Boolean(data.isFallback),
+      });
       if (!validatedRoutine) {
         throw new Error('Invalid response structure');
       }

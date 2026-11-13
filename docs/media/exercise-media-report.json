@@ -1,0 +1,1842 @@
+{
+  "generatedAt": "2026-11-13T11:03:41.132Z",
+  "catalogCoverage": {
+    "totalRegistered": 90,
+    "withMediaMetadata": 90,
+    "publishedAndVerified": 0,
+    "eligibleForAi": 0,
+    "withoutPublishedMedia": 90,
+    "byMuscle": {
+      "chest": 11,
+      "back": 12,
+      "shoulders": 10,
+      "biceps": 8,
+      "triceps": 8,
+      "quads": 10,
+      "hamstrings": 7,
+      "calves": 5,
+      "core": 11,
+      "glutes": 8
+    },
+    "byCategory": {
+      "bodyweight": 19,
+      "dumbbell": 20,
+      "barbell": 13,
+      "machine": 15,
+      "cable": 13,
+      "bands": 10
+    }
+  },
+  "structuralErrorCount": 0,
+  "structuralErrors": [],
+  "warningCount": 0,
+  "warnings": [],
+  "networkChecked": true,
+  "networkReachableCount": 0,
+  "networkUnreachableCount": 90,
+  "exercisesWithoutPublishedMediaCount": 90,
+  "exercisesWithoutPublishedMedia": [
+    {
+      "exerciseId": "ab_crunch_machine",
+      "name": "Abdominal Crunch Machine",
+      "namePt": "Abdominal na Máquina",
+      "primaryMuscle": "core",
+      "category": "machine",
+      "assetId": "exercise_ab_crunch_machine",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/ab_crunch_machine.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_bicep_curl",
+      "name": "Resistance Band Bicep Curl",
+      "namePt": "Rosca Direta com Elástico",
+      "primaryMuscle": "biceps",
+      "category": "bands",
+      "assetId": "exercise_band_bicep_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_bicep_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_chest_press",
+      "name": "Resistance Band Chest Press",
+      "namePt": "Supino com Elástico",
+      "primaryMuscle": "chest",
+      "category": "bands",
+      "assetId": "exercise_band_chest_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_chest_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_hip_thrust",
+      "name": "Resistance Band Glute Bridge",
+      "namePt": "Elevação Pélvica com Elástico",
+      "primaryMuscle": "glutes",
+      "category": "bands",
+      "assetId": "exercise_band_hip_thrust",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_hip_thrust.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_lat_pulldown",
+      "name": "Resistance Band Lat Pulldown",
+      "namePt": "Puxada Alta com Elástico",
+      "primaryMuscle": "back",
+      "category": "bands",
+      "assetId": "exercise_band_lat_pulldown",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_lat_pulldown.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_leg_curl",
+      "name": "Resistance Band Leg Curl",
+      "namePt": "Flexora com Elástico",
+      "primaryMuscle": "hamstrings",
+      "category": "bands",
+      "assetId": "exercise_band_leg_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_leg_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_pallof_press",
+      "name": "Band Pallof Press",
+      "namePt": "Pallof Press Anti-Rotação com Elástico",
+      "primaryMuscle": "core",
+      "category": "bands",
+      "assetId": "exercise_band_pallof_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_pallof_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_pull_apart",
+      "name": "Resistance Band Pull-Apart",
+      "namePt": "Crucifixo Inverso com Elástico",
+      "primaryMuscle": "shoulders",
+      "category": "bands",
+      "assetId": "exercise_band_pull_apart",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_pull_apart.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_row",
+      "name": "Resistance Band Row",
+      "namePt": "Remada com Elástico",
+      "primaryMuscle": "back",
+      "category": "bands",
+      "assetId": "exercise_band_row",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_row.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_squat",
+      "name": "Resistance Band Squat",
+      "namePt": "Agachamento com Elástico",
+      "primaryMuscle": "quads",
+      "category": "bands",
+      "assetId": "exercise_band_squat",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_squat.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "band_tricep_pushdown",
+      "name": "Resistance Band Triceps Pushdown",
+      "namePt": "Tríceps Pulley com Elástico",
+      "primaryMuscle": "triceps",
+      "category": "bands",
+      "assetId": "exercise_band_tricep_pushdown",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_tricep_pushdown.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "barbell_curl",
+      "name": "EZ-Bar Bicep Curl",
+      "namePt": "Rosca Direta na Barra W",
+      "primaryMuscle": "biceps",
+      "category": "barbell",
+      "assetId": "exercise_barbell_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "barbell_deadlift",
+      "name": "Conventional Barbell Deadlift",
+      "namePt": "Levantamento Terra Convencional",
+      "primaryMuscle": "back",
+      "category": "barbell",
+      "assetId": "exercise_barbell_deadlift",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_deadlift.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "barbell_hip_thrust",
+      "name": "Barbell Hip Thrust",
+      "namePt": "Elevação Pélvica com Barra (Hip Thrust)",
+      "primaryMuscle": "glutes",
+      "category": "barbell",
+      "assetId": "exercise_barbell_hip_thrust",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_hip_thrust.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "barbell_row",
+      "name": "Bent-Over Barbell Row",
+      "namePt": "Remada Curvada com Barra",
+      "primaryMuscle": "back",
+      "category": "barbell",
+      "assetId": "exercise_barbell_row",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_row.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "barbell_squat",
+      "name": "Barbell Back Squat",
+      "namePt": "Agachamento Livre com Barra",
+      "primaryMuscle": "quads",
+      "category": "barbell",
+      "assetId": "exercise_barbell_squat",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_squat.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "bench_press",
+      "name": "Barbell Bench Press",
+      "namePt": "Supino Reto com Barra",
+      "primaryMuscle": "chest",
+      "category": "barbell",
+      "assetId": "exercise_bench_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/bench_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "bicycle_crunch",
+      "name": "Bicycle Crunch",
+      "namePt": "Abdominal Bicicleta",
+      "primaryMuscle": "core",
+      "category": "bodyweight",
+      "assetId": "exercise_bicycle_crunch",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/bicycle_crunch.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "bodyweight_squat",
+      "name": "Bodyweight Squat",
+      "namePt": "Agachamento Livre",
+      "primaryMuscle": "quads",
+      "category": "bodyweight",
+      "assetId": "exercise_bodyweight_squat",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/bodyweight_squat.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "bulgarian_split_squat",
+      "name": "Dumbbell Bulgarian Split Squat",
+      "namePt": "Agachamento Búlgaro com Halteres",
+      "primaryMuscle": "quads",
+      "category": "dumbbell",
+      "assetId": "exercise_bulgarian_split_squat",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/bulgarian_split_squat.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "cable_bicep_curl",
+      "name": "Cable Straight-Bar Curl",
+      "namePt": "Rosca Direta na Polia Baixa",
+      "primaryMuscle": "biceps",
+      "category": "cable",
+      "assetId": "exercise_cable_bicep_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_bicep_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "cable_crunch",
+      "name": "Kneeling Cable Crunch",
+      "namePt": "Abdominal Supra na Polia",
+      "primaryMuscle": "core",
+      "category": "cable",
+      "assetId": "exercise_cable_crunch",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_crunch.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "cable_face_pull",
+      "name": "Cable Face Pull",
+      "namePt": "Face Pull na Polia com Corda",
+      "primaryMuscle": "shoulders",
+      "category": "cable",
+      "assetId": "exercise_cable_face_pull",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_face_pull.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "cable_fly",
+      "name": "Cable Chest Flyes",
+      "namePt": "Crucifixo no Crossover",
+      "primaryMuscle": "chest",
+      "category": "cable",
+      "assetId": "exercise_cable_fly",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_fly.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "cable_glute_kickback",
+      "name": "Cable Glute Kickback",
+      "namePt": "Coice para Glúteos na Polia",
+      "primaryMuscle": "glutes",
+      "category": "cable",
+      "assetId": "exercise_cable_glute_kickback",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_glute_kickback.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "cable_lateral_raise",
+      "name": "Single-Arm Cable Lateral Raise",
+      "namePt": "Elevação Lateral Unilateral na Polia",
+      "primaryMuscle": "shoulders",
+      "category": "cable",
+      "assetId": "exercise_cable_lateral_raise",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_lateral_raise.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "cable_pull_through",
+      "name": "Cable Pull-Through",
+      "namePt": "Extensão de Quadril na Polia (Pull-Through)",
+      "primaryMuscle": "glutes",
+      "category": "cable",
+      "assetId": "exercise_cable_pull_through",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_pull_through.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "cable_woodchopper",
+      "name": "Cable Woodchopper",
+      "namePt": "Rotação de Tronco na Polia (Woodchopper)",
+      "primaryMuscle": "core",
+      "category": "cable",
+      "assetId": "exercise_cable_woodchopper",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_woodchopper.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "chest_press_machine",
+      "name": "Seated Chest Press Machine",
+      "namePt": "Supino Sentado na Máquina",
+      "primaryMuscle": "chest",
+      "category": "machine",
+      "assetId": "exercise_chest_press_machine",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/chest_press_machine.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "chest_supported_row_machine",
+      "name": "Machine Chest-Supported Row",
+      "namePt": "Remada Articulada na Máquina",
+      "primaryMuscle": "back",
+      "category": "machine",
+      "assetId": "exercise_chest_supported_row_machine",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/chest_supported_row_machine.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "chin_up",
+      "name": "Chin-Up",
+      "namePt": "Barra Fixa Supinada",
+      "primaryMuscle": "back",
+      "category": "bodyweight",
+      "assetId": "exercise_chin_up",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/chin_up.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "close_grip_bench_press",
+      "name": "Close-Grip Barbell Bench Press",
+      "namePt": "Supino Fechado com Barra",
+      "primaryMuscle": "triceps",
+      "category": "barbell",
+      "assetId": "exercise_close_grip_bench_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/close_grip_bench_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "concentration_curl",
+      "name": "Dumbbell Concentration Curl",
+      "namePt": "Rosca Concentrada com Halter",
+      "primaryMuscle": "biceps",
+      "category": "dumbbell",
+      "assetId": "exercise_concentration_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/concentration_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_bench_press",
+      "name": "Flat Dumbbell Bench Press",
+      "namePt": "Supino Reto com Halteres",
+      "primaryMuscle": "chest",
+      "category": "dumbbell",
+      "assetId": "exercise_db_bench_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_bench_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_bicep_curl",
+      "name": "Alternating Dumbbell Curl",
+      "namePt": "Rosca Alternada com Halteres",
+      "primaryMuscle": "biceps",
+      "category": "dumbbell",
+      "assetId": "exercise_db_bicep_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_bicep_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_fly",
+      "name": "Dumbbell Chest Fly",
+      "namePt": "Crucifixo Reto com Halteres",
+      "primaryMuscle": "chest",
+      "category": "dumbbell",
+      "assetId": "exercise_db_fly",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_fly.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_overhead_tricep_ext",
+      "name": "Overhead Dumbbell Triceps Extension",
+      "namePt": "Tríceps Francês com Halter",
+      "primaryMuscle": "triceps",
+      "category": "dumbbell",
+      "assetId": "exercise_db_overhead_tricep_ext",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_overhead_tricep_ext.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_romanian_deadlift",
+      "name": "Dumbbell Romanian Deadlift",
+      "namePt": "Stiff / RDL com Halteres",
+      "primaryMuscle": "hamstrings",
+      "category": "dumbbell",
+      "assetId": "exercise_db_romanian_deadlift",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_romanian_deadlift.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_russian_twist",
+      "name": "Dumbbell Russian Twist",
+      "namePt": "Torção Russa com Halter",
+      "primaryMuscle": "core",
+      "category": "dumbbell",
+      "assetId": "exercise_db_russian_twist",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_russian_twist.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_standing_calf_raise",
+      "name": "Dumbbell Standing Calf Raise",
+      "namePt": "Panturrilha em Pé com Halteres",
+      "primaryMuscle": "calves",
+      "category": "dumbbell",
+      "assetId": "exercise_db_standing_calf_raise",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_standing_calf_raise.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_sumo_squat",
+      "name": "Dumbbell Sumo Squat",
+      "namePt": "Agachamento Sumô com Halter",
+      "primaryMuscle": "glutes",
+      "category": "dumbbell",
+      "assetId": "exercise_db_sumo_squat",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_sumo_squat.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "db_tricep_kickback",
+      "name": "Dumbbell Triceps Kickback",
+      "namePt": "Tríceps Coice com Halter",
+      "primaryMuscle": "triceps",
+      "category": "dumbbell",
+      "assetId": "exercise_db_tricep_kickback",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_tricep_kickback.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "dead_bug",
+      "name": "Dead Bug",
+      "namePt": "Inseto Morto (Dead Bug)",
+      "primaryMuscle": "core",
+      "category": "bodyweight",
+      "assetId": "exercise_dead_bug",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/dead_bug.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "decline_push_up",
+      "name": "Decline Push-Up",
+      "namePt": "Flexão Declinada",
+      "primaryMuscle": "chest",
+      "category": "bodyweight",
+      "assetId": "exercise_decline_push_up",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/decline_push_up.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "diamond_push_up",
+      "name": "Diamond Push-Up",
+      "namePt": "Flexão Diamante",
+      "primaryMuscle": "triceps",
+      "category": "bodyweight",
+      "assetId": "exercise_diamond_push_up",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/diamond_push_up.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "front_barbell_squat",
+      "name": "Barbell Front Squat",
+      "namePt": "Agachamento Frontal com Barra",
+      "primaryMuscle": "quads",
+      "category": "barbell",
+      "assetId": "exercise_front_barbell_squat",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/front_barbell_squat.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "front_db_raise",
+      "name": "Dumbbell Front Raise",
+      "namePt": "Elevação Frontal com Halteres",
+      "primaryMuscle": "shoulders",
+      "category": "dumbbell",
+      "assetId": "exercise_front_db_raise",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/front_db_raise.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "glute_bridge",
+      "name": "Glute Bridge",
+      "namePt": "Elevação Pélvica no Solo",
+      "primaryMuscle": "glutes",
+      "category": "bodyweight",
+      "assetId": "exercise_glute_bridge",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/glute_bridge.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "goblet_squat",
+      "name": "Dumbbell Goblet Squat",
+      "namePt": "Agachamento Goblet com Halter",
+      "primaryMuscle": "quads",
+      "category": "dumbbell",
+      "assetId": "exercise_goblet_squat",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/goblet_squat.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "good_morning",
+      "name": "Barbell Good Morning",
+      "namePt": "Bom Dia com Barra (Good Morning)",
+      "primaryMuscle": "hamstrings",
+      "category": "barbell",
+      "assetId": "exercise_good_morning",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/good_morning.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "hack_squat_machine",
+      "name": "Hack Squat Machine",
+      "namePt": "Agachamento Hack na Máquina",
+      "primaryMuscle": "quads",
+      "category": "machine",
+      "assetId": "exercise_hack_squat_machine",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hack_squat_machine.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "hammer_curl",
+      "name": "Dumbbell Hammer Curl",
+      "namePt": "Rosca Martelo com Halteres",
+      "primaryMuscle": "biceps",
+      "category": "dumbbell",
+      "assetId": "exercise_hammer_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hammer_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "hanging_leg_raise",
+      "name": "Hanging Leg Raise",
+      "namePt": "Elevação de Pernas Suspenso",
+      "primaryMuscle": "core",
+      "category": "bodyweight",
+      "assetId": "exercise_hanging_leg_raise",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hanging_leg_raise.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "hip_abduction_machine",
+      "name": "Seated Hip Abduction Machine",
+      "namePt": "Cadeira Abdutora",
+      "primaryMuscle": "glutes",
+      "category": "machine",
+      "assetId": "exercise_hip_abduction_machine",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hip_abduction_machine.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "hollow_body_hold",
+      "name": "Hollow Body Hold",
+      "namePt": "Canoinha Isométrica (Hollow Hold)",
+      "primaryMuscle": "core",
+      "category": "bodyweight",
+      "assetId": "exercise_hollow_body_hold",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hollow_body_hold.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "incline_barbell_press",
+      "name": "Incline Barbell Bench Press",
+      "namePt": "Supino Inclinado com Barra",
+      "primaryMuscle": "chest",
+      "category": "barbell",
+      "assetId": "exercise_incline_barbell_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/incline_barbell_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "incline_db_curl",
+      "name": "Incline Dumbbell Curl",
+      "namePt": "Rosca Inclinada com Halteres",
+      "primaryMuscle": "biceps",
+      "category": "dumbbell",
+      "assetId": "exercise_incline_db_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/incline_db_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "incline_db_press",
+      "name": "Incline Dumbbell Press",
+      "namePt": "Supino Inclinado com Halteres",
+      "primaryMuscle": "chest",
+      "category": "dumbbell",
+      "assetId": "exercise_incline_db_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/incline_db_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "lat_pulldown",
+      "name": "Lat Pulldown Wide Grip",
+      "namePt": "Puxada Aberta na Polia",
+      "primaryMuscle": "back",
+      "category": "cable",
+      "assetId": "exercise_lat_pulldown",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/lat_pulldown.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "lateral_raise",
+      "name": "Dumbbell Lateral Raise",
+      "namePt": "Elevação Lateral com Halteres",
+      "primaryMuscle": "shoulders",
+      "category": "dumbbell",
+      "assetId": "exercise_lateral_raise",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/lateral_raise.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "leg_extension",
+      "name": "Leg Extension Machine",
+      "namePt": "Cadeira Extensora",
+      "primaryMuscle": "quads",
+      "category": "machine",
+      "assetId": "exercise_leg_extension",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/leg_extension.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "leg_press",
+      "name": "Leg Press 45°",
+      "namePt": "Leg Press 45 Graus",
+      "primaryMuscle": "quads",
+      "category": "machine",
+      "assetId": "exercise_leg_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/leg_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "leg_press_calf_raise",
+      "name": "Leg Press Calf Press",
+      "namePt": "Panturrilha no Leg Press",
+      "primaryMuscle": "calves",
+      "category": "machine",
+      "assetId": "exercise_leg_press_calf_raise",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/leg_press_calf_raise.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "lying_leg_curl",
+      "name": "Lying Leg Curl Machine",
+      "namePt": "Mesa Flexora",
+      "primaryMuscle": "hamstrings",
+      "category": "machine",
+      "assetId": "exercise_lying_leg_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/lying_leg_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "one_arm_db_row",
+      "name": "Single-Arm Dumbbell Row",
+      "namePt": "Remada Unilateral com Halter (Serrote)",
+      "primaryMuscle": "back",
+      "category": "dumbbell",
+      "assetId": "exercise_one_arm_db_row",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/one_arm_db_row.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "overhead_cable_tricep_ext",
+      "name": "Overhead Cable Triceps Extension",
+      "namePt": "Tríceps Francês na Polia com Corda",
+      "primaryMuscle": "triceps",
+      "category": "cable",
+      "assetId": "exercise_overhead_cable_tricep_ext",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/overhead_cable_tricep_ext.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "overhead_press",
+      "name": "Standing Barbell OHP",
+      "namePt": "Desenvolvimento Militar com Barra",
+      "primaryMuscle": "shoulders",
+      "category": "barbell",
+      "assetId": "exercise_overhead_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/overhead_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "pec_deck_fly",
+      "name": "Pec Deck Machine Fly",
+      "namePt": "Voador Peitoral (Peck Deck)",
+      "primaryMuscle": "chest",
+      "category": "machine",
+      "assetId": "exercise_pec_deck_fly",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/pec_deck_fly.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "pike_push_up",
+      "name": "Pike Push-Up",
+      "namePt": "Flexão Pike para Ombros",
+      "primaryMuscle": "shoulders",
+      "category": "bodyweight",
+      "assetId": "exercise_pike_push_up",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/pike_push_up.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "plank",
+      "name": "Forearm Plank",
+      "namePt": "Prancha Isométrica no Antebraço",
+      "primaryMuscle": "core",
+      "category": "bodyweight",
+      "assetId": "exercise_plank",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/plank.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "preacher_curl_machine",
+      "name": "Preacher Curl Machine",
+      "namePt": "Rosca Scott na Máquina",
+      "primaryMuscle": "biceps",
+      "category": "machine",
+      "assetId": "exercise_preacher_curl_machine",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/preacher_curl_machine.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "prone_snow_angels",
+      "name": "Prone Snow Angels",
+      "namePt": "Anjos na Neve em Prono",
+      "primaryMuscle": "back",
+      "category": "bodyweight",
+      "assetId": "exercise_prone_snow_angels",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/prone_snow_angels.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "pull_up",
+      "name": "Pull-Up",
+      "namePt": "Barra Fixa Pronada",
+      "primaryMuscle": "back",
+      "category": "bodyweight",
+      "assetId": "exercise_pull_up",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/pull_up.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "push_up",
+      "name": "Push-Up",
+      "namePt": "Flexão de Braço",
+      "primaryMuscle": "chest",
+      "category": "bodyweight",
+      "assetId": "exercise_push_up",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "rear_delt_db_fly",
+      "name": "Bent-Over Rear Delt Fly",
+      "namePt": "Crucifixo Inverso com Halteres",
+      "primaryMuscle": "shoulders",
+      "category": "dumbbell",
+      "assetId": "exercise_rear_delt_db_fly",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/rear_delt_db_fly.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "reverse_lunge",
+      "name": "Reverse Lunge",
+      "namePt": "Avanço Reverso",
+      "primaryMuscle": "quads",
+      "category": "bodyweight",
+      "assetId": "exercise_reverse_lunge",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/reverse_lunge.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "romanian_deadlift",
+      "name": "Romanian Deadlift (RDL)",
+      "namePt": "Stiff / RDL com Barra",
+      "primaryMuscle": "hamstrings",
+      "category": "barbell",
+      "assetId": "exercise_romanian_deadlift",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/romanian_deadlift.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "seated_cable_row",
+      "name": "Seated Cable Row",
+      "namePt": "Remada Baixa na Polia",
+      "primaryMuscle": "back",
+      "category": "cable",
+      "assetId": "exercise_seated_cable_row",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/seated_cable_row.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "seated_calf_raise",
+      "name": "Seated Calf Raise Machine",
+      "namePt": "Panturrilha Sentado na Máquina",
+      "primaryMuscle": "calves",
+      "category": "machine",
+      "assetId": "exercise_seated_calf_raise",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/seated_calf_raise.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "seated_db_shoulder_press",
+      "name": "Seated Dumbbell Shoulder Press",
+      "namePt": "Desenvolvimento com Halteres Sentado",
+      "primaryMuscle": "shoulders",
+      "category": "dumbbell",
+      "assetId": "exercise_seated_db_shoulder_press",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/seated_db_shoulder_press.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "seated_leg_curl",
+      "name": "Seated Leg Curl Machine",
+      "namePt": "Cadeira Flexora",
+      "primaryMuscle": "hamstrings",
+      "category": "machine",
+      "assetId": "exercise_seated_leg_curl",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/seated_leg_curl.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "shoulder_press_machine",
+      "name": "Shoulder Press Machine",
+      "namePt": "Desenvolvimento na Máquina",
+      "primaryMuscle": "shoulders",
+      "category": "machine",
+      "assetId": "exercise_shoulder_press_machine",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/shoulder_press_machine.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "side_plank",
+      "name": "Side Plank",
+      "namePt": "Prancha Lateral",
+      "primaryMuscle": "core",
+      "category": "bodyweight",
+      "assetId": "exercise_side_plank",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/side_plank.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "single_leg_bw_calf_raise",
+      "name": "Single-Leg Bodyweight Calf Raise",
+      "namePt": "Panturrilha Unilateral no Degrau",
+      "primaryMuscle": "calves",
+      "category": "bodyweight",
+      "assetId": "exercise_single_leg_bw_calf_raise",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/single_leg_bw_calf_raise.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "single_leg_glute_bridge",
+      "name": "Single-Leg Glute Bridge",
+      "namePt": "Elevação Pélvica Unilateral no Solo",
+      "primaryMuscle": "glutes",
+      "category": "bodyweight",
+      "assetId": "exercise_single_leg_glute_bridge",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/single_leg_glute_bridge.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "single_leg_rdl_bw",
+      "name": "Single-Leg Bodyweight RDL",
+      "namePt": "Stiff Unilateral com Peso Corporal",
+      "primaryMuscle": "hamstrings",
+      "category": "bodyweight",
+      "assetId": "exercise_single_leg_rdl_bw",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/single_leg_rdl_bw.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "skull_crusher",
+      "name": "Lying Barbell Skull Crusher",
+      "namePt": "Tríceps Testa com Barra",
+      "primaryMuscle": "triceps",
+      "category": "barbell",
+      "assetId": "exercise_skull_crusher",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/skull_crusher.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "standing_calf",
+      "name": "Standing Calf Raise",
+      "namePt": "Gêmeos em Pé na Máquina",
+      "primaryMuscle": "calves",
+      "category": "machine",
+      "assetId": "exercise_standing_calf",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/standing_calf.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "straight_arm_pulldown",
+      "name": "Straight-Arm Cable Pulldown",
+      "namePt": "Pulldown com Braços Estendidos na Polia",
+      "primaryMuscle": "back",
+      "category": "cable",
+      "assetId": "exercise_straight_arm_pulldown",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/straight_arm_pulldown.webp",
+      "status": "planned"
+    },
+    {
+      "exerciseId": "tricep_pushdown",
+      "name": "Triceps Rope Pushdown",
+      "namePt": "Tríceps Corda no Cross",
+      "primaryMuscle": "triceps",
+      "category": "cable",
+      "assetId": "exercise_tricep_pushdown",
+      "plannedImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/tricep_pushdown.webp",
+      "status": "planned"
+    }
+  ],
+  "networkResults": [
+    {
+      "exerciseId": "ab_crunch_machine",
+      "assetId": "exercise_ab_crunch_machine",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/ab_crunch_machine.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_bicep_curl",
+      "assetId": "exercise_band_bicep_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_bicep_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_chest_press",
+      "assetId": "exercise_band_chest_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_chest_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_hip_thrust",
+      "assetId": "exercise_band_hip_thrust",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_hip_thrust.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_lat_pulldown",
+      "assetId": "exercise_band_lat_pulldown",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_lat_pulldown.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_leg_curl",
+      "assetId": "exercise_band_leg_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_leg_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_pallof_press",
+      "assetId": "exercise_band_pallof_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_pallof_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_pull_apart",
+      "assetId": "exercise_band_pull_apart",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_pull_apart.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_row",
+      "assetId": "exercise_band_row",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_row.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_squat",
+      "assetId": "exercise_band_squat",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_squat.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "band_tricep_pushdown",
+      "assetId": "exercise_band_tricep_pushdown",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/band_tricep_pushdown.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "barbell_curl",
+      "assetId": "exercise_barbell_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "barbell_deadlift",
+      "assetId": "exercise_barbell_deadlift",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_deadlift.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "barbell_hip_thrust",
+      "assetId": "exercise_barbell_hip_thrust",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_hip_thrust.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "barbell_row",
+      "assetId": "exercise_barbell_row",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_row.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "barbell_squat",
+      "assetId": "exercise_barbell_squat",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/barbell_squat.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "bench_press",
+      "assetId": "exercise_bench_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/bench_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "bicycle_crunch",
+      "assetId": "exercise_bicycle_crunch",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/bicycle_crunch.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "bodyweight_squat",
+      "assetId": "exercise_bodyweight_squat",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/bodyweight_squat.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "bulgarian_split_squat",
+      "assetId": "exercise_bulgarian_split_squat",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/bulgarian_split_squat.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "cable_bicep_curl",
+      "assetId": "exercise_cable_bicep_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_bicep_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "cable_crunch",
+      "assetId": "exercise_cable_crunch",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_crunch.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "cable_face_pull",
+      "assetId": "exercise_cable_face_pull",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_face_pull.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "cable_fly",
+      "assetId": "exercise_cable_fly",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_fly.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "cable_glute_kickback",
+      "assetId": "exercise_cable_glute_kickback",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_glute_kickback.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "cable_lateral_raise",
+      "assetId": "exercise_cable_lateral_raise",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_lateral_raise.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "cable_pull_through",
+      "assetId": "exercise_cable_pull_through",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_pull_through.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "cable_woodchopper",
+      "assetId": "exercise_cable_woodchopper",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/cable_woodchopper.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "chest_press_machine",
+      "assetId": "exercise_chest_press_machine",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/chest_press_machine.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "chest_supported_row_machine",
+      "assetId": "exercise_chest_supported_row_machine",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/chest_supported_row_machine.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "chin_up",
+      "assetId": "exercise_chin_up",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/chin_up.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "close_grip_bench_press",
+      "assetId": "exercise_close_grip_bench_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/close_grip_bench_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "concentration_curl",
+      "assetId": "exercise_concentration_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/concentration_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_bench_press",
+      "assetId": "exercise_db_bench_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_bench_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_bicep_curl",
+      "assetId": "exercise_db_bicep_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_bicep_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_fly",
+      "assetId": "exercise_db_fly",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_fly.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_overhead_tricep_ext",
+      "assetId": "exercise_db_overhead_tricep_ext",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_overhead_tricep_ext.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_romanian_deadlift",
+      "assetId": "exercise_db_romanian_deadlift",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_romanian_deadlift.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_russian_twist",
+      "assetId": "exercise_db_russian_twist",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_russian_twist.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_standing_calf_raise",
+      "assetId": "exercise_db_standing_calf_raise",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_standing_calf_raise.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_sumo_squat",
+      "assetId": "exercise_db_sumo_squat",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_sumo_squat.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "db_tricep_kickback",
+      "assetId": "exercise_db_tricep_kickback",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/db_tricep_kickback.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "dead_bug",
+      "assetId": "exercise_dead_bug",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/dead_bug.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "decline_push_up",
+      "assetId": "exercise_decline_push_up",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/decline_push_up.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "diamond_push_up",
+      "assetId": "exercise_diamond_push_up",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/diamond_push_up.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "front_barbell_squat",
+      "assetId": "exercise_front_barbell_squat",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/front_barbell_squat.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "front_db_raise",
+      "assetId": "exercise_front_db_raise",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/front_db_raise.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "glute_bridge",
+      "assetId": "exercise_glute_bridge",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/glute_bridge.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "goblet_squat",
+      "assetId": "exercise_goblet_squat",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/goblet_squat.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "good_morning",
+      "assetId": "exercise_good_morning",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/good_morning.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "hack_squat_machine",
+      "assetId": "exercise_hack_squat_machine",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hack_squat_machine.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "hammer_curl",
+      "assetId": "exercise_hammer_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hammer_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "hanging_leg_raise",
+      "assetId": "exercise_hanging_leg_raise",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hanging_leg_raise.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "hip_abduction_machine",
+      "assetId": "exercise_hip_abduction_machine",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hip_abduction_machine.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "hollow_body_hold",
+      "assetId": "exercise_hollow_body_hold",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/hollow_body_hold.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "incline_barbell_press",
+      "assetId": "exercise_incline_barbell_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/incline_barbell_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "incline_db_curl",
+      "assetId": "exercise_incline_db_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/incline_db_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "incline_db_press",
+      "assetId": "exercise_incline_db_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/incline_db_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "lat_pulldown",
+      "assetId": "exercise_lat_pulldown",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/lat_pulldown.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "lateral_raise",
+      "assetId": "exercise_lateral_raise",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/lateral_raise.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "leg_extension",
+      "assetId": "exercise_leg_extension",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/leg_extension.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "leg_press",
+      "assetId": "exercise_leg_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/leg_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "leg_press_calf_raise",
+      "assetId": "exercise_leg_press_calf_raise",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/leg_press_calf_raise.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "lying_leg_curl",
+      "assetId": "exercise_lying_leg_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/lying_leg_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "one_arm_db_row",
+      "assetId": "exercise_one_arm_db_row",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/one_arm_db_row.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "overhead_cable_tricep_ext",
+      "assetId": "exercise_overhead_cable_tricep_ext",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/overhead_cable_tricep_ext.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "overhead_press",
+      "assetId": "exercise_overhead_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/overhead_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "pec_deck_fly",
+      "assetId": "exercise_pec_deck_fly",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/pec_deck_fly.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "pike_push_up",
+      "assetId": "exercise_pike_push_up",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/pike_push_up.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "plank",
+      "assetId": "exercise_plank",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/plank.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "preacher_curl_machine",
+      "assetId": "exercise_preacher_curl_machine",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/preacher_curl_machine.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "prone_snow_angels",
+      "assetId": "exercise_prone_snow_angels",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/prone_snow_angels.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "pull_up",
+      "assetId": "exercise_pull_up",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/pull_up.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "push_up",
+      "assetId": "exercise_push_up",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "rear_delt_db_fly",
+      "assetId": "exercise_rear_delt_db_fly",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/rear_delt_db_fly.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "reverse_lunge",
+      "assetId": "exercise_reverse_lunge",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/reverse_lunge.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "romanian_deadlift",
+      "assetId": "exercise_romanian_deadlift",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/romanian_deadlift.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "seated_cable_row",
+      "assetId": "exercise_seated_cable_row",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/seated_cable_row.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "seated_calf_raise",
+      "assetId": "exercise_seated_calf_raise",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/seated_calf_raise.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "seated_db_shoulder_press",
+      "assetId": "exercise_seated_db_shoulder_press",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/seated_db_shoulder_press.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "seated_leg_curl",
+      "assetId": "exercise_seated_leg_curl",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/seated_leg_curl.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "shoulder_press_machine",
+      "assetId": "exercise_shoulder_press_machine",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/shoulder_press_machine.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "side_plank",
+      "assetId": "exercise_side_plank",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/side_plank.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "single_leg_bw_calf_raise",
+      "assetId": "exercise_single_leg_bw_calf_raise",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/single_leg_bw_calf_raise.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "single_leg_glute_bridge",
+      "assetId": "exercise_single_leg_glute_bridge",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/single_leg_glute_bridge.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "single_leg_rdl_bw",
+      "assetId": "exercise_single_leg_rdl_bw",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/single_leg_rdl_bw.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "skull_crusher",
+      "assetId": "exercise_skull_crusher",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/skull_crusher.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "standing_calf",
+      "assetId": "exercise_standing_calf",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/standing_calf.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "straight_arm_pulldown",
+      "assetId": "exercise_straight_arm_pulldown",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/straight_arm_pulldown.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    },
+    {
+      "exerciseId": "tricep_pushdown",
+      "assetId": "exercise_tricep_pushdown",
+      "statusInCatalog": "planned",
+      "primaryImageUrl": "https://cdn.fitflow.celisapp.com/exercises/v1/tricep_pushdown.webp",
+      "httpOk": false,
+      "httpStatus": null,
+      "contentType": null,
+      "error": "fetch failed"
+    }
+  ]
+}

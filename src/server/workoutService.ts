@@ -6,10 +6,10 @@ import { EXERCISE_DATABASE } from '../data/presetRoutines';
 import {
   describeGoals,
   experiencePrompt,
+  getCompatibleCatalogExercises,
   getEligibleCatalogExercises,
   getWorkoutSetBudget,
   GeneratedWorkout,
-  hasValidExerciseMedia,
   isEquipmentAvailable,
   validateAndAdaptGeneratedWorkout,
   validateGeneratedWorkout,
@@ -20,6 +20,9 @@ import {
 const initialApiKey = process.env.GEMINI_API_KEY || '';
 export const geminiClient = {
   current: initialApiKey ? new GoogleGenAI({ apiKey: initialApiKey }) : null,
+};
+export const exerciseCatalog: { current: Record<string, Exercise> } = {
+  current: EXERCISE_DATABASE,
 };
 
 // ---- Proteção do endpoint Gemini contra abuso ----
@@ -126,6 +129,7 @@ export function resetRateLimitForTesting(): void {
   rateLimitMap.clear();
   geminiConcurrentRequests = 0;
   geminiTimeoutMs = GEMINI_TIMEOUT_MS;
+  exerciseCatalog.current = EXERCISE_DATABASE;
 }
 
 // API Route: Generate or adapt workout via Gemini 3.8 Flash
@@ -151,24 +155,39 @@ export async function handleGenerateWorkout(
   } = workoutRequest;
 
   try {
-    const eligibleExercises = getEligibleCatalogExercises(allowedEquipment);
-    if (eligibleExercises.length === 0) {
+    const activeCatalog = exerciseCatalog.current;
+    const compatibleExercises = getCompatibleCatalogExercises(allowedEquipment, activeCatalog);
+    if (compatibleExercises.length === 0) {
       return res.status(422).json({
         success: false,
-        message: 'Não há exercícios elegíveis cadastrados para os equipamentos selecionados.',
+        message: 'Não há exercícios cadastrados para os equipamentos selecionados.',
       });
     }
+
+    const eligibleExercises = getEligibleCatalogExercises(allowedEquipment, activeCatalog);
 
     // Lazily initialize client if environment variable was added/updated at runtime
     if (!geminiClient.current && process.env.GEMINI_API_KEY) {
       geminiClient.current = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     }
 
-    if (!geminiClient.current) {
-      // Fallback if no API key configured in dev
-      const routine = generateProfileFallback(focus, durationMinutes, language, allowedEquipment, experienceLevel, profileGoals);
+    if (!geminiClient.current || eligibleExercises.length === 0) {
+      // Fallback determinístico quando não houver chave ou nenhum exercício elegível com mídia publicada/verificada
+      const routine = generateProfileFallback(
+        focus,
+        durationMinutes,
+        language,
+        allowedEquipment,
+        experienceLevel,
+        profileGoals,
+        activeCatalog,
+      );
       const validatedFallback = routine
-        ? validateAndAdaptGeneratedWorkout(routine, allowedEquipment, experienceLevel, { language })
+        ? validateAndAdaptGeneratedWorkout(routine, allowedEquipment, experienceLevel, {
+            language,
+            catalog: activeCatalog,
+            allowUnpublishedMedia: true,
+          })
         : null;
       if (!validatedFallback) {
         return res.status(422).json({ success: false, message: 'Não há exercícios cadastrados para os equipamentos selecionados.' });
@@ -176,7 +195,9 @@ export async function handleGenerateWorkout(
       return res.status(200).json({
         success: true,
         isFallback: true,
-        message: 'No API key provided, generated via local kinetic engine',
+        message: !geminiClient.current
+          ? 'No API key provided, generated via local kinetic engine'
+          : 'No exercises with verified published media available for AI selection; generated via local kinetic engine',
         routine: validatedFallback,
       });
     }
@@ -292,9 +313,12 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
       const text = response.text || '';
       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsedData = JSON.parse(cleanJson);
-      const personalizedRoutine = validateAndAdaptGeneratedWorkout(parsedData, allowedEquipment, experienceLevel, { language });
+      const personalizedRoutine = validateAndAdaptGeneratedWorkout(parsedData, allowedEquipment, experienceLevel, {
+        language,
+        catalog: activeCatalog,
+      });
       if (!personalizedRoutine) {
-        throw new Error('Gemini returned an invalid, non-catalog, or equipment-incompatible workout');
+        throw new Error('Gemini returned an invalid, non-catalog, unverified-media, or equipment-incompatible workout');
       }
 
       return res.status(200).json({
@@ -319,9 +343,14 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
         allowedEquipment,
         experienceLevel,
         profileGoals,
+        activeCatalog,
       );
       const validatedFallback = fallback
-        ? validateAndAdaptGeneratedWorkout(fallback, allowedEquipment, experienceLevel, { language })
+        ? validateAndAdaptGeneratedWorkout(fallback, allowedEquipment, experienceLevel, {
+            language,
+            catalog: activeCatalog,
+            allowUnpublishedMedia: true,
+          })
         : null;
       if (!validatedFallback) {
         return res.status(422).json({ success: false, message: 'Não há exercícios cadastrados para os equipamentos selecionados.' });
@@ -353,9 +382,10 @@ export function generateProfileFallback(
   equipment: TrainingEquipment[],
   experience: ExperienceLevel,
   goals: ProfileGoal[],
+  catalog: Record<string, Exercise> = exerciseCatalog.current,
 ): GeneratedWorkout | null {
   const isPt = language !== 'en';
-  const fallback = generateFallbackRoutine(focus, duration, language);
+  const fallback = generateFallbackRoutine(focus, duration, language, catalog);
   const focusText = focus.toLowerCase();
   const prefersFullBody = focusText.includes('full') || goals.some(goal => goal === 'weight_loss' || goal === 'fitness' || goal === 'health');
   const focusLower = focus.toLowerCase();
@@ -365,6 +395,7 @@ export function generateProfileFallback(
     legs: ['quads', 'glutes', 'hamstrings', 'calves'],
     upper: ['chest', 'back', 'shoulders', 'biceps', 'triceps'],
     lower: ['quads', 'glutes', 'hamstrings', 'calves'],
+    core: ['core'],
   };
   let targetFocusMuscles: string[] = [];
   Object.keys(focusMuscleMap).forEach((key) => {
@@ -376,9 +407,8 @@ export function generateProfileFallback(
 
   let exercises: any[] = [];
   if (!prefersFullBody) {
-    const compatible = Object.values(EXERCISE_DATABASE)
+    const compatible = Object.values(catalog)
       .filter((exercise: Exercise) =>
-        hasValidExerciseMedia(exercise) &&
         isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired) &&
         targetFocusMuscles.includes(exercise.primaryMuscle),
       )
@@ -410,9 +440,8 @@ export function generateProfileFallback(
   const needsExerciseCatalogFallback = exercises.length === 0;
 
   if (prefersFullBody || needsExerciseCatalogFallback) {
-    const compatible = Object.values(EXERCISE_DATABASE)
+    const compatible = Object.values(catalog)
       .filter((exercise: Exercise) =>
-        hasValidExerciseMedia(exercise) &&
         isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired),
       )
       .sort((left, right) => left.id.localeCompare(right.id))
@@ -466,11 +495,20 @@ export function generateProfileFallback(
       : `Routine adapted for your goals (${describeGoals(goals)}) and ${experiencePrompt[experience]} experience level. No load prescribed: start with no weight or a light load, adjust by technique and perceived exertion (RPE). Reduce the load or stop the exercise if you feel pain, dizziness, shortness of breath, or abnormal symptoms.`,
   };
 
-  return validateGeneratedWorkout(candidate, equipment, { language });
+  return validateGeneratedWorkout(candidate, equipment, {
+    language,
+    catalog,
+    allowUnpublishedMedia: true,
+  });
 }
 
-function buildFallbackExerciseEntry(exerciseId: string, isPt: boolean) {
-  const ex = EXERCISE_DATABASE[exerciseId];
+function buildFallbackExerciseEntry(
+  exerciseId: string,
+  isPt: boolean,
+  catalog: Record<string, Exercise> = exerciseCatalog.current,
+) {
+  const ex = catalog[exerciseId];
+  if (!ex) return null;
   return {
     exerciseId: ex.id,
     name: isPt ? ex.namePt : ex.name,
@@ -495,11 +533,15 @@ export function generateFallbackRoutine(
   focus: string,
   duration: number,
   language: 'pt' | 'en',
+  catalog: Record<string, Exercise> = exerciseCatalog.current,
 ) {
   const isPt = language !== 'en';
   const focusStr = focus.toLowerCase();
 
   if (focusStr.includes('pull') || focusStr.includes('costas') || focusStr.includes('back')) {
+    const entries = ['barbell_deadlift', 'lat_pulldown', 'barbell_row', 'barbell_curl']
+      .map((id) => buildFallbackExerciseEntry(id, isPt, catalog))
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
     return {
       title: isPt ? 'Pull Dinâmico: Dorsais & Bíceps' : 'Dynamic Pull: Lats & Posterior Power',
       category: 'Pull',
@@ -510,15 +552,13 @@ export function generateFallbackRoutine(
       coachingNotes: isPt
         ? 'Foque em puxar com os cotovelos e sustentar 1s no pico de contração.'
         : 'Drive with your elbows and pause for 1s at peak contraction.',
-      exercises: [
-        buildFallbackExerciseEntry('barbell_deadlift', isPt),
-        buildFallbackExerciseEntry('lat_pulldown', isPt),
-        buildFallbackExerciseEntry('barbell_row', isPt),
-        buildFallbackExerciseEntry('barbell_curl', isPt),
-      ],
+      exercises: entries,
     };
   }
 
+  const entries = ['bench_press', 'incline_db_press', 'lateral_raise', 'tricep_pushdown']
+    .map((id) => buildFallbackExerciseEntry(id, isPt, catalog))
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
   return {
     title: isPt ? 'Push Alfa: Peitorais & Tríceps' : 'Alpha Push: Chest & Deltoid Force',
     category: 'Push',
@@ -529,11 +569,6 @@ export function generateFallbackRoutine(
     coachingNotes: isPt
       ? 'Controle a fase excêntrica da descida para gerar o máximo de estímulo hipertrófico.'
       : 'Control the eccentric descent to maximize mechanical hypertrophy tension.',
-    exercises: [
-      buildFallbackExerciseEntry('bench_press', isPt),
-      buildFallbackExerciseEntry('incline_db_press', isPt),
-      buildFallbackExerciseEntry('lateral_raise', isPt),
-      buildFallbackExerciseEntry('tricep_pushdown', isPt),
-    ],
+    exercises: entries,
   };
 }

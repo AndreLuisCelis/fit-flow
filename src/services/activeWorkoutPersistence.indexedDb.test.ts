@@ -267,7 +267,8 @@ test('real IndexedDB non-destructively backfills catalog media while preserving 
 
   // Custom legacy exercise remains completely preserved
   assert.deepEqual(byId['legacy-custom-ex-1'], legacyCustomExercise);
-  // Catalog exercise receives non-destructive media backfill
+  // Catalog exercise receives non-destructive media backfill and new expanded exercises are seeded
   assert.ok(byId['push_up']?.media?.imageUrl.startsWith('https://'));
+  assert.ok(exercises.length >= 90, `Expected at least 90 seeded+custom exercises, got ${exercises.length}`);
 });
 

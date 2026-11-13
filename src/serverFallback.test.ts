@@ -6,6 +6,7 @@ import test from 'node:test';
 import vercelWorkoutHandler from '../api/generate-workout.js';
 import { MAX_PAYLOAD_BYTES } from './server/apiHandler';
 import {
+  exerciseCatalog,
   generateFallbackRoutine,
   generateProfileFallback,
   geminiClient,
@@ -19,6 +20,25 @@ import {
 import { validateGeneratedWorkout } from './utils/workoutPersonalization';
 import { EXERCISE_DATABASE } from './data/presetRoutines';
 import { TrainingEquipment } from './types/profile';
+import { Exercise } from './types/workout';
+
+function buildVerifiedTestCatalog(source: Record<string, Exercise> = EXERCISE_DATABASE): Record<string, Exercise> {
+  return Object.fromEntries(
+    Object.entries(source).map(([id, exercise]) => [
+      id,
+      exercise.media
+        ? {
+            ...exercise,
+            media: {
+              ...exercise.media,
+              status: 'published' as const,
+              verifiedAt: '2026-11-13T10:00:00.000Z',
+            },
+          }
+        : exercise,
+    ]),
+  );
+}
 
 function mockResponse(): { statusCode?: number; body?: unknown } {
   const res: any = {};
@@ -59,13 +79,20 @@ async function invokeRoute(body: unknown, clientOverride: unknown) {
   }
 }
 
-function assertValidRoutine(res: { statusCode?: number; body?: unknown }, equipment: TrainingEquipment[]) {
+function assertValidRoutine(
+  res: { statusCode?: number; body?: unknown },
+  equipment: TrainingEquipment[],
+  catalog: Record<string, Exercise> = EXERCISE_DATABASE,
+) {
   assert.equal(res.statusCode, 200);
   const body = res.body as { success?: boolean; isFallback?: boolean; routine?: unknown };
   assert.equal(body.success, true);
   assert.ok(body.routine, 'a rotina de fallback deve ser retornada');
   assert.ok(
-    validateGeneratedWorkout(body.routine, equipment),
+    validateGeneratedWorkout(body.routine, equipment, {
+      catalog,
+      allowUnpublishedMedia: Boolean(body.isFallback),
+    }),
     'a rotina resultante deve passar na validacao',
   );
 }
@@ -168,23 +195,18 @@ test('resultado do fallback passa na validacao de rotina', () => {
   const routine = generateProfileFallback('Legs', 50, 'pt', ['dumbbell'], 'beginner', ['weight_loss']);
   assert.ok(routine);
   if (!routine) return;
-  assert.ok(validateGeneratedWorkout(routine, ['dumbbell']));
+  assert.ok(validateGeneratedWorkout(routine, ['dumbbell'], { allowUnpublishedMedia: true }));
 });
 
 test('nao devolve exercicios fora do foco muscular solicitado', () => {
-  // Legs com apenas cabos: nao ha exercicio de pernas de cable no catalogo.
-  // Não deve devolver tríceps/peito/ombros apresentados como treino de pernas.
+  // Legs com apenas cabos: se houver exercícios de cable compatíveis para pernas ou corpo todo, respeita equipamento disponível.
   const legs = generateProfileFallback('Legs', 45, 'pt', ['cable'], 'beginner', ['health']);
   assert.ok(legs);
   if (!legs) return;
-  // Fallback de corpo inteiro do catálogo, respeitando o equipamento disponível.
   assert.equal(legs.category, 'Full Body');
   assert.ok(/FitFlow/.test(legs.title));
   for (const exercise of legs.exercises) {
-    assert.ok(
-      !['triceps', 'chest', 'shoulders'].includes(exercise.primaryMuscle) || legs.category === 'Full Body',
-      `${exercise.name} não deve aparecer como treino de pernas`,
-    );
+    assert.equal(exercise.category, 'cable');
   }
 });
 
@@ -228,6 +250,14 @@ test('retorna null quando nao ha exercicios compatíveis com os equipamentos', (
 });
 
 test('rotas do Gemini', async (t) => {
+  t.beforeEach(() => {
+    resetRateLimitForTesting();
+  });
+
+  t.afterEach(() => {
+    resetRateLimitForTesting();
+  });
+
   await t.test('faz fallback quando a Gemini esta indisponivel (sem chave)', async () => {
     const res = await invokeRoute(baseRequestBody, null);
     assert.equal(res.statusCode, 200);
@@ -240,7 +270,26 @@ test('rotas do Gemini', async (t) => {
     }
   });
 
+  await t.test('nao invoca Gemini quando o catalogo real possui apenas midia planejada nao verificada', async () => {
+    let geminiCalled = false;
+    const res = await invokeRoute(baseRequestBody, {
+      models: {
+        generateContent: async () => {
+          geminiCalled = true;
+          return { text: '{}' };
+        },
+      },
+    });
+    assert.equal(geminiCalled, false);
+    assert.equal(res.statusCode, 200);
+    const body = res.body as { success?: boolean; isFallback?: boolean; message?: string; routine?: unknown };
+    assert.equal(body.success, true);
+    assert.equal(body.isFallback, true);
+    assertValidRoutine(res, ['bodyweight']);
+  });
+
   await t.test('faz fallback quando a Gemini retorna erro', async () => {
+    exerciseCatalog.current = buildVerifiedTestCatalog();
     const res = await invokeRoute(baseRequestBody, {
       models: { generateContent: async () => { throw new Error('Gemini indisponível'); } },
     });
@@ -252,6 +301,7 @@ test('rotas do Gemini', async (t) => {
   });
 
   await t.test('faz fallback quando a Gemini retorna JSON invalido', async () => {
+    exerciseCatalog.current = buildVerifiedTestCatalog();
     const res = await invokeRoute(baseRequestBody, {
       models: { generateContent: async () => ({ text: 'nao é json {'})}
     });
@@ -263,6 +313,7 @@ test('rotas do Gemini', async (t) => {
   });
 
   await t.test('faz fallback quando a Gemini retorna rotina invalida para o schema', async () => {
+    exerciseCatalog.current = buildVerifiedTestCatalog();
     const res = await invokeRoute(baseRequestBody, {
       models: { generateContent: async () => ({ text: '{}' }) },
     });
@@ -273,7 +324,15 @@ test('rotas do Gemini', async (t) => {
     assertValidRoutine(res, ['bodyweight']);
   });
 
-  await t.test('retorna rotina da Gemini sem flag de fallback quando a resposta referencia exerciseId valido', async () => {
+  await t.test('retorna rotina da Gemini sem flag de fallback quando a resposta referencia exerciseId valido e verificado', async () => {
+    const verified = buildVerifiedTestCatalog();
+    // Deixa um exercicio de bodyweight sem verificacao para comprovar que nao entra no prompt
+    verified.bodyweight_squat = {
+      ...verified.bodyweight_squat,
+      media: { ...verified.bodyweight_squat.media!, status: 'planned', verifiedAt: undefined },
+    };
+    exerciseCatalog.current = verified;
+
     let capturedPrompt = '';
     const res = await invokeRoute(baseRequestBody, {
       models: {
@@ -308,6 +367,7 @@ test('rotas do Gemini', async (t) => {
     assert.equal(res.statusCode, 200);
     assert.ok(capturedPrompt.includes('push_up'));
     assert.ok(!capturedPrompt.includes('bench_press'));
+    assert.ok(!capturedPrompt.includes('bodyweight_squat'));
     const body = res.body as {
       success?: boolean;
       isFallback?: boolean;
@@ -317,12 +377,49 @@ test('rotas do Gemini', async (t) => {
     assert.equal(body.isFallback, undefined);
     assert.ok(body.routine);
     assert.equal(body.routine.exercises[0].exerciseId, 'push_up');
-    assert.equal(body.routine.exercises[0].name, EXERCISE_DATABASE.push_up.namePt);
-    assert.equal(body.routine.exercises[0].media?.imageUrl, EXERCISE_DATABASE.push_up.media?.imageUrl);
-    assert.ok(validateGeneratedWorkout(body.routine, ['bodyweight']));
+    assert.equal(body.routine.exercises[0].name, verified.push_up.namePt);
+    assert.equal(body.routine.exercises[0].media?.imageUrl, verified.push_up.media?.imageUrl);
+    assert.ok(validateGeneratedWorkout(body.routine, ['bodyweight'], { catalog: verified }));
+  });
+
+  await t.test('faz fallback quando a Gemini retorna exercicio cuja midia ainda nao esta publicada/verificada', async () => {
+    const mixedCatalog = buildVerifiedTestCatalog();
+    mixedCatalog.bodyweight_squat = {
+      ...mixedCatalog.bodyweight_squat,
+      media: { ...mixedCatalog.bodyweight_squat.media!, status: 'planned', verifiedAt: undefined },
+    };
+    exerciseCatalog.current = mixedCatalog;
+
+    const res = await invokeRoute(baseRequestBody, {
+      models: {
+        generateContent: async () => ({
+          text: JSON.stringify({
+            title: 'Unpublished Asset Routine',
+            category: 'Legs',
+            targetDurationMinutes: 45,
+            difficulty: 'Beginner',
+            targetMuscles: ['quads'],
+            xpReward: 150,
+            exercises: [{
+              exerciseId: 'bodyweight_squat',
+              defaultWeight: 0,
+              defaultReps: 12,
+              setsCount: 3,
+              targetRestSeconds: 60,
+            }],
+          }),
+        }),
+      },
+    });
+    assert.equal(res.statusCode, 200);
+    const body = res.body as { success?: boolean; isFallback?: boolean };
+    assert.equal(body.success, true);
+    assert.equal(body.isFallback, true);
+    assertValidRoutine(res, ['bodyweight'], mixedCatalog);
   });
 
   await t.test('faz fallback quando a Gemini retorna exercicio em texto livre sem exerciseId', async () => {
+    exerciseCatalog.current = buildVerifiedTestCatalog();
     const res = await invokeRoute(baseRequestBody, {
       models: {
         generateContent: async () => ({
@@ -356,6 +453,7 @@ test('rotas do Gemini', async (t) => {
   });
 
   await t.test('faz fallback quando a Gemini retorna exerciseId inexistente, duplicado ou de equipamento incompativel', async () => {
+    exerciseCatalog.current = buildVerifiedTestCatalog();
     const invalidPayloads = [
       {
         title: 'Unknown ID',
@@ -448,7 +546,7 @@ test('a função Vercel atende o endpoint público e sua rota interna usando o h
       const body = await apiResponse.json() as { success?: boolean; isFallback?: boolean; routine?: unknown };
       assert.equal(body.success, true);
       assert.equal(body.isFallback, true);
-      assert.ok(validateGeneratedWorkout(body.routine, ['bodyweight']));
+      assert.ok(validateGeneratedWorkout(body.routine, ['bodyweight'], { allowUnpublishedMedia: true }));
     }
 
     // Valida recusa de métodos que não sejam POST
@@ -506,6 +604,7 @@ test('protecao do endpoint Gemini contra abuso', async (t) => {
   });
 
   await t.test('limite de concorrencia recusa requisicao quando atingir GEMINI_MAX_CONCURRENT', async () => {
+    exerciseCatalog.current = buildVerifiedTestCatalog();
     let unblock: () => void = () => {};
     const hangingPromise = new Promise<{ text: string }>((resolve) => {
       unblock = () => resolve({
@@ -568,6 +667,7 @@ test('protecao do endpoint Gemini contra abuso', async (t) => {
   });
 
   await t.test('decrementar contador de concorrencia mesmo quando ocorrer erro ou rejeicao', async () => {
+    exerciseCatalog.current = buildVerifiedTestCatalog();
     const errorClient = {
       models: {
         generateContent: async () => { throw new Error('Falha no modelo'); },
@@ -579,6 +679,7 @@ test('protecao do endpoint Gemini contra abuso', async (t) => {
   });
 
   await t.test('timeout efetivo cancela a chamada Gemini e retorna erro controlado sem vazar detalhes internos', async () => {
+    exerciseCatalog.current = buildVerifiedTestCatalog();
     let receivedSignal: AbortSignal | undefined;
     setGeminiTimeoutForTesting(50); // timeout rápido para o teste
 

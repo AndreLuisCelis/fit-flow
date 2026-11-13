@@ -30,18 +30,19 @@ export interface SetEntry {
   isDropSet?: boolean;
 }
 
-export type ExerciseMediaType = 'image' | 'gif' | 'lottie' | 'webp' | 'mp4' | 'webm' | 'svg';
+export type ExerciseMediaType = 'webp' | 'avif' | 'image' | 'svg' | 'gif' | 'lottie' | 'mp4' | 'webm';
+export type ExerciseMediaStatus = 'planned' | 'published' | 'missing' | 'invalid';
 
 export interface ExerciseMedia {
-  /** URL externa estável da imagem estática principal (fallback obrigatório para animações) */
+  /** URL externa estável da imagem estática principal (WebP/AVIF preferencial; fallback obrigatório) */
   imageUrl: string;
   /** Texto alternativo acessível em inglês */
   alt: string;
   /** Texto alternativo acessível em português (opcional) */
   altPt?: string;
-  /** URL externa opcional de animação (GIF, WebP animado, Lottie) */
+  /** URL externa opcional de animação leve (WebM, MP4, Lottie ou WebP animado) */
   animationUrl?: string;
-  /** URL externa opcional de vídeo demonstrativo */
+  /** URL externa opcional de vídeo demonstrativo (MP4/WebM) */
   videoUrl?: string;
   /** Tipo/formato da mídia principal */
   mediaType: ExerciseMediaType;
@@ -49,6 +50,12 @@ export interface ExerciseMedia {
   assetId: string;
   /** Versão do ativo para rastreabilidade e cache */
   version: string;
+  /** Estado real de publicação e verificação do ativo no CDN */
+  status?: ExerciseMediaStatus;
+  /** Timestamp ISO-8601 da última verificação HTTP real bem-sucedida */
+  verifiedAt?: string;
+  /** Origem documentada do ativo (ex.: pending-batch, imagen-batch-v1, vector-studio) */
+  source?: string;
 }
 
 export interface Exercise {

@@ -58,12 +58,25 @@ export const ExerciseGuideCard: React.FC<ExerciseGuideCardProps> = ({
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
+          className="space-y-2.5"
         >
           <p className="text-xs leading-relaxed text-slate-300">
             {language === 'pt'
               ? guide.descriptionPt || guide.description
               : guide.description || guide.descriptionPt}
           </p>
+          {(guide.commonMistakesPt || guide.commonMistakes) && (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2">
+              <p className="text-[10px] font-mono-numbers font-bold uppercase tracking-wider text-amber-300 mb-0.5">
+                {language === 'pt' ? 'Erros Comuns a Evitar' : 'Common Mistakes to Avoid'}
+              </p>
+              <p className="text-[11px] leading-relaxed text-slate-300">
+                {language === 'pt'
+                  ? guide.commonMistakesPt || guide.commonMistakes
+                  : guide.commonMistakes || guide.commonMistakesPt}
+              </p>
+            </div>
+          )}
         </motion.div>
       ) : (
         <p className="text-xs leading-relaxed text-slate-400 italic">

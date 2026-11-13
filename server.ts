@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
+  exerciseCatalog,
   geminiClient,
   GEMINI_TIMEOUT_MS,
   GEMINI_MAX_CONCURRENT,
@@ -20,6 +21,7 @@ import {
 } from './src/server/workoutService';
 
 export {
+  exerciseCatalog,
   geminiClient,
   GEMINI_TIMEOUT_MS,
   GEMINI_MAX_CONCURRENT,

@@ -5,7 +5,10 @@ import { TrainingEquipment, UserProfile } from '../types/profile';
 import {
   adaptGeneratedWorkout,
   getEligibleCatalogExercises,
+  getExerciseEligibilityStatus,
+  hasExerciseMediaMetadata,
   hasValidExerciseMedia,
+  hasVerifiedExerciseMedia,
   isRoutineCompatible,
   isValidExerciseMedia,
   rankCompatibleRoutines,
@@ -13,7 +16,32 @@ import {
   validateGeneratedWorkout,
   validateWorkoutRequest,
 } from './workoutPersonalization';
-import { EXERCISE_DATABASE } from '../data/presetRoutines';
+import { EXERCISE_DATABASE, EXERCISE_GUIDE } from '../data/presetRoutines';
+import {
+  buildCatalogCoverageReport,
+  EXERCISE_MEDIA_MANIFEST,
+  getExercisesWithoutPublishedMedia,
+} from '../data/exerciseMediaManifest';
+
+function createVerifiedCatalog(source: Record<string, Exercise> = EXERCISE_DATABASE): Record<string, Exercise> {
+  return Object.fromEntries(
+    Object.entries(source).map(([id, exercise]) => [
+      id,
+      exercise.media
+        ? {
+            ...exercise,
+            media: {
+              ...exercise.media,
+              status: 'published' as const,
+              verifiedAt: '2026-11-13T10:00:00.000Z',
+            },
+          }
+        : exercise,
+    ]),
+  );
+}
+
+const verifiedCatalog = createVerifiedCatalog();
 
 const database: Record<string, Exercise> = {
   bodyweight_squat: {
@@ -170,8 +198,8 @@ test('generated workout validation rejects bodyweight movements that need unavai
       setsCount: 3, targetRestSeconds: 60,
     }],
   };
-  assert.equal(validateGeneratedWorkout(generated, ['bodyweight']), null);
-  assert.ok(validateGeneratedWorkout(generated, ['pull_up_bar']));
+  assert.equal(validateGeneratedWorkout(generated, ['bodyweight'], { catalog: verifiedCatalog }), null);
+  assert.ok(validateGeneratedWorkout(generated, ['pull_up_bar'], { catalog: verifiedCatalog }));
 });
 
 test('generated workout validation accepts a well-formed compatible routine', () => {
@@ -184,7 +212,7 @@ test('generated workout validation accepts a well-formed compatible routine', ()
       defaultWeight: 0, defaultReps: 10, setsCount: 3, targetRestSeconds: 60,
     }],
   };
-  const result = validateGeneratedWorkout(generated, ['bodyweight']);
+  const result = validateGeneratedWorkout(generated, ['bodyweight'], { catalog: verifiedCatalog });
   assert.equal(result?.exercises.length, 1);
   assert.equal(result?.exercises[0].exerciseId, 'bodyweight_squat');
   assert.ok(result?.exercises[0].media?.imageUrl);
@@ -199,7 +227,7 @@ test('generated workout is capped to beginner difficulty and volume', () => {
       name: 'Bench press', primaryMuscle: 'chest', category: 'barbell',
       defaultWeight: 60, defaultReps: 8, setsCount: 6, targetRestSeconds: 90,
     }],
-  }, ['barbell']);
+  }, ['barbell'], { catalog: verifiedCatalog });
   assert.ok(generated);
   if (generated) {
     const adapted = adaptGeneratedWorkout(generated, 'beginner');
@@ -217,7 +245,7 @@ test('advanced users may receive advanced routines without being downgraded', ()
       name: 'Bench press', primaryMuscle: 'chest', category: 'barbell',
       defaultWeight: 60, defaultReps: 8, setsCount: 4, targetRestSeconds: 90,
     }],
-  }, ['barbell']);
+  }, ['barbell'], { catalog: verifiedCatalog });
   assert.ok(generated);
   if (generated) assert.equal(adaptGeneratedWorkout(generated, 'advanced').difficulty, 'Advanced');
 });
@@ -279,7 +307,7 @@ test('generated workout validation accepts numeric boundaries and fractional kil
       targetRestSeconds: 0,
     }],
   });
-  assert.ok(validateGeneratedWorkout(atMinimums, ['bodyweight']));
+  assert.ok(validateGeneratedWorkout(atMinimums, ['bodyweight'], { catalog: verifiedCatalog }));
 
   const atMaximums = generatedWorkout({
     targetDurationMinutes: 240,
@@ -295,10 +323,10 @@ test('generated workout validation accepts numeric boundaries and fractional kil
       targetRestSeconds: 600,
     }],
   });
-  assert.ok(validateGeneratedWorkout(atMaximums, ['bodyweight']));
+  assert.ok(validateGeneratedWorkout(atMaximums, ['bodyweight'], { catalog: verifiedCatalog }));
   assert.ok(validateGeneratedWorkout(generatedWorkout({
     exercises: [{ ...generatedWorkout().exercises[0], defaultWeight: 22.5 }],
-  }), ['bodyweight']));
+  }), ['bodyweight'], { catalog: verifiedCatalog }));
 });
 
 test('generated workout validation rejects extra fields and incomplete structures', () => {
@@ -371,13 +399,13 @@ test('generated workout validation enforces exercise and muscle-count limits', (
   assert.ok(validateGeneratedWorkout(generatedWorkout({
     targetMuscles: sixMuscleExercises.map((item) => item.primaryMuscle),
     exercises: sixMuscleExercises.map((item) => ({ ...exercise, exerciseId: item.exerciseId, setsCount: 1 })),
-  }), allEquipment));
+  }), allEquipment, { catalog: verifiedCatalog }));
 
   const tenValidIds = elevenUniqueIds.slice(0, 10);
   assert.ok(validateGeneratedWorkout(generatedWorkout({
     targetMuscles: ['chest', 'shoulders', 'triceps', 'back', 'biceps'],
     exercises: tenValidIds.map((exerciseId) => ({ ...exercise, exerciseId, setsCount: 1 })),
-  }), allEquipment));
+  }), allEquipment, { catalog: verifiedCatalog }));
 });
 
 test('generated workout validation rejects values beyond numeric upper and lower bounds', () => {
@@ -424,7 +452,7 @@ test('level adaptation is deterministic and caps difficulty and training volume'
       exerciseId,
       setsCount: 6,
     })),
-  }), ['bodyweight']);
+  }), ['bodyweight'], { catalog: verifiedCatalog });
   assert.ok(validated);
   if (!validated) return;
 
@@ -466,18 +494,18 @@ test('Phase 2 contract: accepts valid catalog exerciseId and hydrates authoritat
     }],
   };
 
-  const validatedPt = validateGeneratedWorkout(payload, ['bodyweight'], { language: 'pt' });
+  const validatedPt = validateGeneratedWorkout(payload, ['bodyweight'], { language: 'pt', catalog: verifiedCatalog });
   assert.ok(validatedPt);
   assert.equal(validatedPt.exercises[0].exerciseId, 'bodyweight_squat');
-  assert.equal(validatedPt.exercises[0].name, EXERCISE_DATABASE.bodyweight_squat.namePt);
-  assert.equal(validatedPt.exercises[0].namePt, EXERCISE_DATABASE.bodyweight_squat.namePt);
+  assert.equal(validatedPt.exercises[0].name, verifiedCatalog.bodyweight_squat.namePt);
+  assert.equal(validatedPt.exercises[0].namePt, verifiedCatalog.bodyweight_squat.namePt);
   assert.equal(validatedPt.exercises[0].primaryMuscle, 'quads');
   assert.equal(validatedPt.exercises[0].category, 'bodyweight');
-  assert.deepEqual(validatedPt.exercises[0].media, EXERCISE_DATABASE.bodyweight_squat.media);
+  assert.deepEqual(validatedPt.exercises[0].media, verifiedCatalog.bodyweight_squat.media);
 
-  const validatedEn = validateGeneratedWorkout(payload, ['bodyweight'], { language: 'en' });
+  const validatedEn = validateGeneratedWorkout(payload, ['bodyweight'], { language: 'en', catalog: verifiedCatalog });
   assert.ok(validatedEn);
-  assert.equal(validatedEn.exercises[0].name, EXERCISE_DATABASE.bodyweight_squat.name);
+  assert.equal(validatedEn.exercises[0].name, verifiedCatalog.bodyweight_squat.name);
 });
 
 test('Phase 2 contract: rejects free-form exercises without exerciseId and non-existent exerciseIds', () => {
@@ -538,14 +566,43 @@ test('Phase 2 contract: rejects catalog exercises without valid image/media and 
       },
     },
     valid_static_squat: {
-      ...EXERCISE_DATABASE.bodyweight_squat,
+      ...verifiedCatalog.bodyweight_squat,
       id: 'valid_static_squat',
+    },
+    planned_unverified_squat: {
+      ...EXERCISE_DATABASE.bodyweight_squat,
+      id: 'planned_unverified_squat',
+      media: {
+        ...EXERCISE_DATABASE.bodyweight_squat.media!,
+        status: 'planned',
+        verifiedAt: undefined,
+      },
+    },
+    published_without_timestamp: {
+      ...EXERCISE_DATABASE.bodyweight_squat,
+      id: 'published_without_timestamp',
+      media: {
+        ...EXERCISE_DATABASE.bodyweight_squat.media!,
+        status: 'published',
+        verifiedAt: undefined,
+      },
     },
   };
 
+  assert.equal(hasExerciseMediaMetadata(catalogWithoutImage.no_media_squat), false);
+  assert.equal(hasExerciseMediaMetadata(catalogWithoutImage.planned_unverified_squat), true);
+  assert.equal(hasVerifiedExerciseMedia(catalogWithoutImage.planned_unverified_squat), false);
+  assert.equal(hasVerifiedExerciseMedia(catalogWithoutImage.published_without_timestamp), false);
+
   assert.equal(hasValidExerciseMedia(catalogWithoutImage.no_media_squat), false);
   assert.equal(hasValidExerciseMedia(catalogWithoutImage.data_uri_pushup), false);
+  assert.equal(hasValidExerciseMedia(catalogWithoutImage.planned_unverified_squat), false);
+  assert.equal(hasValidExerciseMedia(catalogWithoutImage.published_without_timestamp), false);
   assert.equal(hasValidExerciseMedia(catalogWithoutImage.valid_static_squat), true);
+
+  assert.equal(getExerciseEligibilityStatus(catalogWithoutImage.planned_unverified_squat, ['bodyweight']).reason, 'media_not_published_or_verified');
+  assert.equal(getExerciseEligibilityStatus(catalogWithoutImage.valid_static_squat, ['bodyweight']).reason, 'eligible');
+  assert.equal(getExerciseEligibilityStatus(catalogWithoutImage.valid_static_squat, ['barbell']).reason, 'incompatible_equipment');
 
   const eligible = getEligibleCatalogExercises(['bodyweight'], catalogWithoutImage);
   assert.deepEqual(eligible.map((item) => item.id), ['valid_static_squat']);
@@ -559,6 +616,28 @@ test('Phase 2 contract: rejects catalog exercises without valid image/media and 
       targetRestSeconds: 60,
     }],
   }), ['bodyweight'], { catalog: catalogWithoutImage }), null);
+
+  // IA Gemini nunca pode selecionar exercício sem mídia publicada e verificada
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    exercises: [{
+      exerciseId: 'planned_unverified_squat',
+      defaultWeight: 0,
+      defaultReps: 10,
+      setsCount: 3,
+      targetRestSeconds: 60,
+    }],
+  }), ['bodyweight'], { catalog: catalogWithoutImage }), null);
+
+  // Fallback determinístico local pode operar com allowUnpublishedMedia: true
+  assert.ok(validateGeneratedWorkout(generatedWorkout({
+    exercises: [{
+      exerciseId: 'planned_unverified_squat',
+      defaultWeight: 0,
+      defaultReps: 10,
+      setsCount: 3,
+      targetRestSeconds: 60,
+    }],
+  }), ['bodyweight'], { catalog: catalogWithoutImage, allowUnpublishedMedia: true }));
 
   assert.equal(validateGeneratedWorkout(generatedWorkout({
     targetMuscles: ['chest'],
@@ -576,20 +655,22 @@ test('Phase 2 contract: supports static fallback media and optional animation/vi
   assert.equal(isValidExerciseMedia({
     imageUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webp',
     alt: 'Push-up form',
-    mediaType: 'image',
+    mediaType: 'webp',
     assetId: 'exercise_push_up',
     version: '1.0.0',
   }), true);
 
   assert.equal(isValidExerciseMedia({
     imageUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webp',
-    animationUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.lottie',
+    animationUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webm',
     videoUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.mp4',
     alt: 'Push-up animation',
     altPt: 'Animação da flexão',
-    mediaType: 'lottie',
+    mediaType: 'webp',
     assetId: 'exercise_push_up',
     version: '1.1.0',
+    status: 'published',
+    verifiedAt: '2026-11-13T10:00:00.000Z',
   }), true);
 
   assert.equal(isValidExerciseMedia({
@@ -621,14 +702,56 @@ test('Phase 2 contract: rejects duplicate exerciseIds in the same routine', () =
       },
     ],
   });
-  assert.equal(validateGeneratedWorkout(duplicateIdsPayload, ['bodyweight']), null);
+  assert.equal(validateGeneratedWorkout(duplicateIdsPayload, ['bodyweight'], { catalog: verifiedCatalog }), null);
 });
 
-test('Phase 2 compatibility: catalog completeness and legacy routines without media continue working', () => {
-  for (const exercise of Object.values(EXERCISE_DATABASE)) {
-    assert.equal(hasValidExerciseMedia(exercise), true, `${exercise.id} must have valid external media`);
+test('Phase 2 Step 2: expanded catalog covers 80-100 unique exercises, all muscle groups, equipment types, guides, and honest media verification status', () => {
+  const entries = Object.values(EXERCISE_DATABASE);
+  assert.ok(entries.length >= 80 && entries.length <= 100, `Expected 80-100 exercises, got ${entries.length}`);
+
+  const seenIds = new Set<string>();
+  const seenAssetIds = new Set<string>();
+  const coverage = buildCatalogCoverageReport(EXERCISE_DATABASE);
+
+  for (const exercise of entries) {
+    assert.ok(!seenIds.has(exercise.id), `Duplicate exercise id: ${exercise.id}`);
+    seenIds.add(exercise.id);
+
+    assert.ok(exercise.name.trim().length > 0, `${exercise.id} must have EN name`);
+    assert.ok(exercise.namePt.trim().length > 0, `${exercise.id} must have PT name`);
+    assert.equal(hasExerciseMediaMetadata(exercise), true, `${exercise.id} must have valid structural media metadata`);
     assert.ok(exercise.media?.imageUrl.startsWith('https://'), `${exercise.id} media imageUrl must be HTTPS`);
+    assert.ok(!seenAssetIds.has(exercise.media!.assetId), `Duplicate assetId: ${exercise.media!.assetId}`);
+    seenAssetIds.add(exercise.media!.assetId);
+
+    const guide = EXERCISE_GUIDE[exercise.id];
+    assert.ok(guide?.description.trim(), `${exercise.id} must have EN guide description`);
+    assert.ok(guide?.descriptionPt.trim(), `${exercise.id} must have PT guide description`);
+    assert.ok(guide?.commonMistakes?.trim(), `${exercise.id} must have EN commonMistakes`);
+    assert.ok(guide?.commonMistakesPt?.trim(), `${exercise.id} must have PT commonMistakesPt`);
+
+    // Regra de honestidade: nenhum ativo planejado sem publicação HTTP verificada deve constar como elegível para Gemini
+    assert.equal(hasVerifiedExerciseMedia(exercise), false, `${exercise.id} must not claim published media without CDN verification`);
   }
+
+  // Cobertura completa de todos os 10 grupamentos musculares e 6 categorias de equipamento + barra fixa
+  for (const [muscle, count] of Object.entries(coverage.byMuscle)) {
+    assert.ok(count > 0, `Muscle group ${muscle} must have at least 1 exercise`);
+  }
+  for (const [category, count] of Object.entries(coverage.byCategory)) {
+    assert.ok(count > 0, `Equipment category ${category} must have at least 1 exercise`);
+  }
+  assert.ok(entries.some((ex) => ex.equipmentRequired?.includes('pull_up_bar')), 'Catalog must cover pull_up_bar');
+
+  // Manifesto e relatório refletem com exatidão os 90 cadastrados e 0 publicados/verificados
+  assert.equal(EXERCISE_MEDIA_MANIFEST.length, entries.length);
+  assert.equal(coverage.totalRegistered, entries.length);
+  assert.equal(coverage.withMediaMetadata, entries.length);
+  assert.equal(coverage.publishedAndVerified, 0);
+  assert.equal(coverage.eligibleForAi, 0);
+  assert.equal(coverage.withoutPublishedMedia, entries.length);
+  assert.equal(getExercisesWithoutPublishedMedia().length, entries.length);
+  assert.equal(getEligibleCatalogExercises(['bodyweight', 'barbell', 'dumbbell', 'cable', 'machine', 'bands', 'pull_up_bar']).length, 0);
 
   // Old persisted routine referencing exercises without media field remains compatible
   const legacyRoutine = routine('legacy-routine-1', 'Full Body', 'Beginner', 'bodyweight_squat');
