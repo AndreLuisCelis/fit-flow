@@ -7,6 +7,7 @@ import {
   MasteryBadge,
   CompletedExerciseSummary,
   PersistedRestTimerState,
+  Exercise,
 } from './types/workout';
 import { activeWorkoutManager, reconstructRestTimer } from './services/activeWorkoutPersistence';
 import { PRESET_ROUTINES, EXERCISE_DATABASE, INITIAL_USER_STATS, INITIAL_BADGES } from './data/presetRoutines';
@@ -109,8 +110,9 @@ export default function App() {
     }
   });
 
-  // IndexedDB: Histórico de Treinos e Sessão Ativa
+  // IndexedDB: Histórico de Treinos, Exercícios Salvos e Sessão Ativa
   const [completedSessions, setCompletedSessions] = useState<CompletedSessionSummary[]>([]);
+  const [storedExercisesMap, setStoredExercisesMap] = useState<Record<string, Exercise>>({});
   const isFinishingWorkoutRef = useRef<boolean>(false);
   const [activeWorkoutSaveError, setActiveWorkoutSaveError] = useState(false);
 
@@ -173,6 +175,15 @@ export default function App() {
         }
       } catch (e) {
         console.warn('Could not load history from IndexedDB:', e);
+      }
+
+      try {
+        const storedExercises = await fitFlowDB.getExercises();
+        if (storedExercises.length > 0) {
+          setStoredExercisesMap(Object.fromEntries(storedExercises.map((exercise) => [exercise.id, exercise])));
+        }
+      } catch (e) {
+        console.warn('Could not load stored exercises from IndexedDB:', e);
       }
 
       try {
@@ -276,7 +287,7 @@ export default function App() {
       startTime: Date.now(),
       currentExerciseIndex: 0,
       exercises: routine.exercises.map(item => {
-        const baseEx = EXERCISE_DATABASE[item.exerciseId] || {
+        const baseEx = EXERCISE_DATABASE[item.exerciseId] || storedExercisesMap[item.exerciseId] || {
           id: item.exerciseId,
           name: 'Exercise',
           namePt: 'Exercício',

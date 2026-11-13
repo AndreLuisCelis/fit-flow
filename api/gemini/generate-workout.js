@@ -2,6 +2,19 @@
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 // src/data/presetRoutines.ts
+var EXERCISE_MEDIA_CDN_BASE = "https://cdn.fitflow.celisapp.com/exercises/v1";
+var EXERCISE_MEDIA_VERSION = "1.0.0";
+function createExerciseMedia(id, alt, altPt, overrides = {}) {
+  return {
+    imageUrl: `${EXERCISE_MEDIA_CDN_BASE}/${id}.webp`,
+    alt,
+    altPt,
+    mediaType: "image",
+    assetId: `exercise_${id}`,
+    version: EXERCISE_MEDIA_VERSION,
+    ...overrides
+  };
+}
 var EXERCISE_GUIDE = {
   bench_press: {
     description: "Barbell Hold: Keep shoulder blades retracted, grip slightly wider than shoulder width, and press vertically while driving feet firmly into the floor.",
@@ -111,7 +124,12 @@ var EXERCISE_DATABASE = {
     notes: "Keep shoulder blades retracted and drive feet firmly through the floor.",
     notesPt: "Mantenha as esc\xE1pulas retra\xEDdas e firme os p\xE9s no ch\xE3o.",
     tempo: "3-0-1-0",
-    guide: EXERCISE_GUIDE.bench_press
+    guide: EXERCISE_GUIDE.bench_press,
+    media: createExerciseMedia(
+      "bench_press",
+      "Barbell bench press starting and pressing position on flat bench",
+      "Posi\xE7\xE3o inicial e execu\xE7\xE3o do supino reto com barra no banco plano"
+    )
   },
   incline_db_press: {
     id: "incline_db_press",
@@ -127,7 +145,12 @@ var EXERCISE_DATABASE = {
     notes: "30 degree bench angle, deep stretch at bottom position.",
     notesPt: "Deixe o banco a 30 graus e alongue bem o peitoral na parte baixa do movimento.",
     tempo: "2-1-1-0",
-    guide: EXERCISE_GUIDE.incline_db_press
+    guide: EXERCISE_GUIDE.incline_db_press,
+    media: createExerciseMedia(
+      "incline_db_press",
+      "Incline dumbbell press performed on a 30 degree bench",
+      "Supino inclinado com halteres executado em banco a 30 graus"
+    )
   },
   cable_fly: {
     id: "cable_fly",
@@ -143,7 +166,12 @@ var EXERCISE_DATABASE = {
     notes: "Squeeze pecs for 1s at peak contraction.",
     notesPt: "Contraia o peitoral por 1 segundo no ponto de maior contra\xE7\xE3o.",
     tempo: "2-0-1-1",
-    guide: EXERCISE_GUIDE.cable_fly
+    guide: EXERCISE_GUIDE.cable_fly,
+    media: createExerciseMedia(
+      "cable_fly",
+      "Standing cable chest fly with handles brought together at chest height",
+      "Crucifixo no crossover em p\xE9 aproximando os pegadores na altura do peitoral"
+    )
   },
   overhead_press: {
     id: "overhead_press",
@@ -159,7 +187,12 @@ var EXERCISE_DATABASE = {
     notes: "Lock glutes and core, press vertically in tight bar path.",
     notesPt: "Contraia os gl\xFAteos e o abd\xF4men; empurre a barra para cima em uma trajet\xF3ria firme.",
     tempo: "2-0-1-0",
-    guide: EXERCISE_GUIDE.overhead_press
+    guide: EXERCISE_GUIDE.overhead_press,
+    media: createExerciseMedia(
+      "overhead_press",
+      "Standing barbell overhead press pressing barbell vertically",
+      "Desenvolvimento militar em p\xE9 empurrando a barra verticalmente"
+    )
   },
   lateral_raise: {
     id: "lateral_raise",
@@ -175,7 +208,12 @@ var EXERCISE_DATABASE = {
     notes: "Slight torso lean, lead with elbows up to shoulder plane.",
     notesPt: "Incline levemente o tronco e conduza o movimento com os cotovelos at\xE9 a altura dos ombros.",
     tempo: "2-0-1-0",
-    guide: EXERCISE_GUIDE.lateral_raise
+    guide: EXERCISE_GUIDE.lateral_raise,
+    media: createExerciseMedia(
+      "lateral_raise",
+      "Standing dumbbell lateral raise raising arms to shoulder height",
+      "Eleva\xE7\xE3o lateral com halteres elevando os bra\xE7os at\xE9 a altura dos ombros"
+    )
   },
   tricep_pushdown: {
     id: "tricep_pushdown",
@@ -191,7 +229,12 @@ var EXERCISE_DATABASE = {
     notes: "Flare rope outward at full extension for lateral head peak.",
     notesPt: "Afaste as pontas da corda ao estender os bra\xE7os para contrair a parte lateral do tr\xEDceps.",
     tempo: "2-0-1-1",
-    guide: EXERCISE_GUIDE.tricep_pushdown
+    guide: EXERCISE_GUIDE.tricep_pushdown,
+    media: createExerciseMedia(
+      "tricep_pushdown",
+      "Cable triceps rope pushdown with elbows pinned to torso",
+      "Tr\xEDceps corda na polia mantendo os cotovelos firmes junto ao tronco"
+    )
   },
   barbell_deadlift: {
     id: "barbell_deadlift",
@@ -207,7 +250,12 @@ var EXERCISE_DATABASE = {
     notes: "Pull slack out of bar, brace abdomen, explode through hips.",
     notesPt: "Retire a folga da barra, firme o abd\xF4men e estenda o quadril com for\xE7a.",
     tempo: "2-1-1-0",
-    guide: EXERCISE_GUIDE.barbell_deadlift
+    guide: EXERCISE_GUIDE.barbell_deadlift,
+    media: createExerciseMedia(
+      "barbell_deadlift",
+      "Conventional barbell deadlift setup and hip hinge lockout",
+      "Levantamento terra convencional com barra rente \xE0s canelas"
+    )
   },
   lat_pulldown: {
     id: "lat_pulldown",
@@ -223,7 +271,12 @@ var EXERCISE_DATABASE = {
     notes: "Depress scapula first, pull bar to upper clavicle.",
     notesPt: "Abaixe as esc\xE1pulas primeiro e puxe a barra em dire\xE7\xE3o \xE0 parte superior do peito.",
     tempo: "2-1-1-0",
-    guide: EXERCISE_GUIDE.lat_pulldown
+    guide: EXERCISE_GUIDE.lat_pulldown,
+    media: createExerciseMedia(
+      "lat_pulldown",
+      "Wide grip lat pulldown pulling cable bar to upper chest",
+      "Puxada aberta na polia trazendo a barra em dire\xE7\xE3o ao peitoral superior"
+    )
   },
   barbell_row: {
     id: "barbell_row",
@@ -239,7 +292,12 @@ var EXERCISE_DATABASE = {
     notes: "Torso locked at 45 degrees, pull to lower ribcage.",
     notesPt: "Mantenha o tronco est\xE1vel a 45 graus e puxe a barra em dire\xE7\xE3o \xE0s costelas inferiores.",
     tempo: "2-0-1-1",
-    guide: EXERCISE_GUIDE.barbell_row
+    guide: EXERCISE_GUIDE.barbell_row,
+    media: createExerciseMedia(
+      "barbell_row",
+      "Bent-over barbell row with torso hinged at 45 degrees",
+      "Remada curvada com barra com tronco inclinado a 45 graus"
+    )
   },
   barbell_curl: {
     id: "barbell_curl",
@@ -255,7 +313,12 @@ var EXERCISE_DATABASE = {
     notes: "Elbows pinned to sides, zero back momentum.",
     notesPt: "Mantenha os cotovelos junto ao tronco e evite impulsionar o movimento com as costas.",
     tempo: "2-0-1-1",
-    guide: EXERCISE_GUIDE.barbell_curl
+    guide: EXERCISE_GUIDE.barbell_curl,
+    media: createExerciseMedia(
+      "barbell_curl",
+      "Standing EZ-bar bicep curl with elbows fixed at torso sides",
+      "Rosca direta na barra W em p\xE9 com cotovelos alinhados ao tronco"
+    )
   },
   barbell_squat: {
     id: "barbell_squat",
@@ -271,7 +334,12 @@ var EXERCISE_DATABASE = {
     notes: "Hit parallel depth with knees tracking toes.",
     notesPt: "Des\xE7a at\xE9 as coxas ficarem paralelas ao ch\xE3o, mantendo os joelhos alinhados com os p\xE9s.",
     tempo: "3-1-1-0",
-    guide: EXERCISE_GUIDE.barbell_squat
+    guide: EXERCISE_GUIDE.barbell_squat,
+    media: createExerciseMedia(
+      "barbell_squat",
+      "Barbell back squat reaching parallel thigh depth",
+      "Agachamento livre com barra atingindo profundidade paralela"
+    )
   },
   romanian_deadlift: {
     id: "romanian_deadlift",
@@ -287,7 +355,12 @@ var EXERCISE_DATABASE = {
     notes: "Hips push backward, soft knee bend, huge hamstring tension.",
     notesPt: "Leve o quadril para tr\xE1s, mantenha os joelhos levemente flexionados e alongue os posteriores da coxa.",
     tempo: "3-1-1-0",
-    guide: EXERCISE_GUIDE.romanian_deadlift
+    guide: EXERCISE_GUIDE.romanian_deadlift,
+    media: createExerciseMedia(
+      "romanian_deadlift",
+      "Barbell Romanian deadlift hinging hips with soft knee bend",
+      "Stiff RDL com barra mantendo joelhos semiflexionados e quadril para tr\xE1s"
+    )
   },
   leg_press: {
     id: "leg_press",
@@ -303,7 +376,12 @@ var EXERCISE_DATABASE = {
     notes: "Full range without lower back lifting off pad.",
     notesPt: "Use toda a amplitude sem tirar a lombar do encosto.",
     tempo: "2-1-1-0",
-    guide: EXERCISE_GUIDE.leg_press
+    guide: EXERCISE_GUIDE.leg_press,
+    media: createExerciseMedia(
+      "leg_press",
+      "45 degree leg press machine with lower back supported against pad",
+      "Leg press 45 graus mantendo a lombar totalmente apoiada no encosto"
+    )
   },
   standing_calf: {
     id: "standing_calf",
@@ -319,7 +397,12 @@ var EXERCISE_DATABASE = {
     notes: "Pause 2s at bottom stretch and 1s at peak contraction.",
     notesPt: "Pause por 2 segundos na parte baixa e por 1 segundo no ponto de contra\xE7\xE3o m\xE1xima.",
     tempo: "2-2-1-1",
-    guide: EXERCISE_GUIDE.standing_calf
+    guide: EXERCISE_GUIDE.standing_calf,
+    media: createExerciseMedia(
+      "standing_calf",
+      "Standing calf raise on machine showing full ankle plantar flexion",
+      "G\xEAmeos em p\xE9 na m\xE1quina executando flex\xE3o plantar completa"
+    )
   },
   hanging_leg_raise: {
     id: "hanging_leg_raise",
@@ -336,7 +419,12 @@ var EXERCISE_DATABASE = {
     notes: "Posterior pelvic tilt at apex, avoid swinging.",
     notesPt: "Fa\xE7a uma retrovers\xE3o p\xE9lvica no ponto alto e evite balan\xE7ar o corpo.",
     tempo: "2-0-1-1",
-    guide: EXERCISE_GUIDE.hanging_leg_raise
+    guide: EXERCISE_GUIDE.hanging_leg_raise,
+    media: createExerciseMedia(
+      "hanging_leg_raise",
+      "Hanging leg raise from pull-up bar with controlled pelvic curl",
+      "Eleva\xE7\xE3o de pernas suspenso na barra fixa com retrovers\xE3o p\xE9lvica"
+    )
   },
   push_up: {
     id: "push_up",
@@ -352,7 +440,12 @@ var EXERCISE_DATABASE = {
     notes: "Keep a straight line from head to heels and lower with control.",
     notesPt: "Mantenha o corpo alinhado da cabe\xE7a aos calcanhares e des\xE7a com controle.",
     tempo: "2-0-1-0",
-    guide: EXERCISE_GUIDE.push_up
+    guide: EXERCISE_GUIDE.push_up,
+    media: createExerciseMedia(
+      "push_up",
+      "Bodyweight push-up maintaining straight plank alignment",
+      "Flex\xE3o de bra\xE7o no solo mantendo o corpo alinhado em prancha"
+    )
   },
   bodyweight_squat: {
     id: "bodyweight_squat",
@@ -368,7 +461,12 @@ var EXERCISE_DATABASE = {
     notes: "Keep the whole foot grounded and track knees over toes.",
     notesPt: "Mantenha o p\xE9 inteiro apoiado no ch\xE3o e alinhe os joelhos com os dedos dos p\xE9s.",
     tempo: "3-0-1-0",
-    guide: EXERCISE_GUIDE.bodyweight_squat
+    guide: EXERCISE_GUIDE.bodyweight_squat,
+    media: createExerciseMedia(
+      "bodyweight_squat",
+      "Bodyweight air squat with feet flat and chest upright",
+      "Agachamento livre com p\xE9s firmes no solo e tronco erguido"
+    )
   },
   reverse_lunge: {
     id: "reverse_lunge",
@@ -384,7 +482,12 @@ var EXERCISE_DATABASE = {
     notes: "Step back with control and keep the front knee stable.",
     notesPt: "D\xEA um passo para tr\xE1s com controle e mantenha o joelho da frente est\xE1vel.",
     tempo: "2-0-1-0",
-    guide: EXERCISE_GUIDE.reverse_lunge
+    guide: EXERCISE_GUIDE.reverse_lunge,
+    media: createExerciseMedia(
+      "reverse_lunge",
+      "Bodyweight reverse lunge stepping back with front knee aligned over ankle",
+      "Avan\xE7o reverso com passo controlado mantendo o joelho da frente est\xE1vel"
+    )
   },
   glute_bridge: {
     id: "glute_bridge",
@@ -400,7 +503,12 @@ var EXERCISE_DATABASE = {
     notes: "Keep ribs down and pause briefly at the top.",
     notesPt: "Mantenha as costelas abaixadas e fa\xE7a uma breve pausa no ponto alto.",
     tempo: "2-1-1-1",
-    guide: EXERCISE_GUIDE.glute_bridge
+    guide: EXERCISE_GUIDE.glute_bridge,
+    media: createExerciseMedia(
+      "glute_bridge",
+      "Floor glute bridge driving hips up through heels",
+      "Eleva\xE7\xE3o p\xE9lvica no solo estendendo o quadril pelos calcanhares"
+    )
   },
   prone_snow_angels: {
     id: "prone_snow_angels",
@@ -416,7 +524,12 @@ var EXERCISE_DATABASE = {
     notes: "Keep the chest lightly raised and move arms slowly.",
     notesPt: "Eleve levemente o peito e mova os bra\xE7os devagar.",
     tempo: "2-0-2-0",
-    guide: EXERCISE_GUIDE.prone_snow_angels
+    guide: EXERCISE_GUIDE.prone_snow_angels,
+    media: createExerciseMedia(
+      "prone_snow_angels",
+      "Prone snow angels lying face down sweeping arms in a wide arc",
+      "Anjos na neve em prono movendo os bra\xE7os em arco amplo e controlado"
+    )
   },
   band_row: {
     id: "band_row",
@@ -432,7 +545,12 @@ var EXERCISE_DATABASE = {
     notes: "Anchor the band securely and pull elbows toward the ribs.",
     notesPt: "Prenda o el\xE1stico com seguran\xE7a e puxe os cotovelos em dire\xE7\xE3o \xE0s costelas.",
     tempo: "2-1-1-1",
-    guide: EXERCISE_GUIDE.band_row
+    guide: EXERCISE_GUIDE.band_row,
+    media: createExerciseMedia(
+      "band_row",
+      "Seated or standing resistance band row pulling elbows back along ribs",
+      "Remada com el\xE1stico puxando os cotovelos junto \xE0s costelas"
+    )
   },
   band_chest_press: {
     id: "band_chest_press",
@@ -448,7 +566,12 @@ var EXERCISE_DATABASE = {
     notes: "Secure the anchor behind you and press without arching the back.",
     notesPt: "Prenda o el\xE1stico atr\xE1s de voc\xEA e empurre sem arquear as costas.",
     tempo: "2-0-1-0",
-    guide: EXERCISE_GUIDE.band_chest_press
+    guide: EXERCISE_GUIDE.band_chest_press,
+    media: createExerciseMedia(
+      "band_chest_press",
+      "Standing resistance band chest press anchored behind torso",
+      "Supino com el\xE1stico em p\xE9 com ancoragem atr\xE1s do tronco"
+    )
   },
   band_squat: {
     id: "band_squat",
@@ -464,7 +587,12 @@ var EXERCISE_DATABASE = {
     notes: "Maintain band tension and keep knees tracking over toes.",
     notesPt: "Mantenha o el\xE1stico tensionado e alinhe os joelhos com os dedos dos p\xE9s.",
     tempo: "3-0-1-0",
-    guide: EXERCISE_GUIDE.band_squat
+    guide: EXERCISE_GUIDE.band_squat,
+    media: createExerciseMedia(
+      "band_squat",
+      "Resistance band squat standing inside band loop with tension at shoulders",
+      "Agachamento com el\xE1stico pisando sobre a faixa com tens\xE3o nos ombros"
+    )
   }
 };
 var createSets = (count, weight, reps) => {
@@ -685,10 +813,27 @@ var routineDifficulties = ["Beginner", "Intermediate", "Advanced", "Hardcore"];
 var maximumTargetMuscles = 6;
 var maximumExercises = 10;
 var exerciseCategories = ["barbell", "dumbbell", "cable", "machine", "bodyweight", "bands"];
+var exerciseMediaTypes = ["image", "gif", "lottie", "webp", "mp4", "webm", "svg"];
 var requestFatigueLevels = ["fresh", "normal", "fatigued"];
 var requestGoals = ["hypertrophy", "strength", "endurance", "deload"];
 var allowedRoutineFields = ["title", "category", "targetDurationMinutes", "difficulty", "targetMuscles", "xpReward", "coachingNotes", "exercises"];
-var allowedExerciseFields = ["name", "primaryMuscle", "category", "equipmentRequired", "defaultWeight", "defaultReps", "setsCount", "targetRestSeconds", "tempo", "notes", "notesPt"];
+var allowedExerciseFields = [
+  "exerciseId",
+  "name",
+  "namePt",
+  "primaryMuscle",
+  "secondaryMuscles",
+  "category",
+  "equipmentRequired",
+  "defaultWeight",
+  "defaultReps",
+  "setsCount",
+  "targetRestSeconds",
+  "tempo",
+  "notes",
+  "notesPt",
+  "media"
+];
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -697,6 +842,38 @@ function hasOnlyFields(value, allowedFields) {
 }
 function isEquipmentList(value) {
   return Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string" && TRAINING_EQUIPMENT.includes(item));
+}
+function isValidExternalMediaUrl(value) {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 500) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+function isValidExerciseMedia(media) {
+  if (!isRecord(media)) return false;
+  if (!isValidExternalMediaUrl(media.imageUrl)) return false;
+  if (typeof media.alt !== "string" || media.alt.trim().length === 0 || media.alt.length > 300) return false;
+  if (media.altPt !== void 0 && (typeof media.altPt !== "string" || media.altPt.trim().length === 0 || media.altPt.length > 300)) return false;
+  if (media.animationUrl !== void 0 && !isValidExternalMediaUrl(media.animationUrl)) return false;
+  if (media.videoUrl !== void 0 && !isValidExternalMediaUrl(media.videoUrl)) return false;
+  if (typeof media.mediaType !== "string" || !exerciseMediaTypes.includes(media.mediaType)) return false;
+  if (typeof media.assetId !== "string" || media.assetId.trim().length === 0 || media.assetId.length > 120) return false;
+  if (typeof media.version !== "string" || media.version.trim().length === 0 || media.version.length > 40) return false;
+  return true;
+}
+function hasValidExerciseMedia(exercise) {
+  return Boolean(exercise && isValidExerciseMedia(exercise.media));
+}
+function getEligibleCatalogExercises(availableEquipment, catalog = EXERCISE_DATABASE) {
+  if (!isEquipmentList(availableEquipment)) return [];
+  return Object.values(catalog).filter(
+    (exercise) => hasValidExerciseMedia(exercise) && isEquipmentAvailable(exercise.category, availableEquipment, exercise.equipmentRequired)
+  ).sort((left, right) => left.id.localeCompare(right.id));
 }
 function validateWorkoutRequest(value) {
   if (!isRecord(value)) return null;
@@ -739,34 +916,81 @@ function validateWorkoutRequest(value) {
     frequentExercises: frequentExercises.map((item) => item.trim())
   };
 }
-function validateGeneratedWorkout(value, availableEquipment) {
+function validateGeneratedWorkout(value, availableEquipment, options = {}) {
+  const catalog = options.catalog ?? EXERCISE_DATABASE;
+  const language = options.language ?? "pt";
   if (!isRecord(value) || !hasOnlyFields(value, allowedRoutineFields) || !isEquipmentList(availableEquipment)) return null;
   const candidate = value;
   if (typeof candidate.title !== "string" || candidate.title.trim().length === 0 || candidate.title.length > 100 || !routineCategories.includes(candidate.category) || !routineDifficulties.includes(candidate.difficulty) || !Array.isArray(candidate.targetMuscles) || candidate.targetMuscles.length === 0 || candidate.targetMuscles.length > maximumTargetMuscles || !candidate.targetMuscles.every((muscle) => muscleGroups.includes(muscle)) || new Set(candidate.targetMuscles).size !== candidate.targetMuscles.length || !Array.isArray(candidate.exercises) || candidate.exercises.length === 0 || candidate.exercises.length > maximumExercises || candidate.coachingNotes !== void 0 && (typeof candidate.coachingNotes !== "string" || candidate.coachingNotes.length > 500)) return null;
+  const seenExerciseIds = /* @__PURE__ */ new Set();
   const exercises = [];
   for (const rawExercise of candidate.exercises) {
     if (!isRecord(rawExercise) || !hasOnlyFields(rawExercise, allowedExerciseFields)) return null;
     const exercise = rawExercise;
-    const category = exercise.category;
-    const primaryMuscle = exercise.primaryMuscle;
-    const equipmentRequired = exercise.equipmentRequired === void 0 ? [] : exercise.equipmentRequired;
+    if (typeof exercise.exerciseId !== "string" || exercise.exerciseId.trim().length === 0 || exercise.exerciseId.length > 100) {
+      return null;
+    }
+    const exerciseId = exercise.exerciseId.trim();
+    if (seenExerciseIds.has(exerciseId)) {
+      return null;
+    }
+    seenExerciseIds.add(exerciseId);
+    const catalogExercise = catalog[exerciseId];
+    if (!catalogExercise) {
+      return null;
+    }
+    if (!hasValidExerciseMedia(catalogExercise)) {
+      return null;
+    }
+    if (!isEquipmentAvailable(catalogExercise.category, availableEquipment, catalogExercise.equipmentRequired)) {
+      return null;
+    }
+    if (exercise.category !== void 0 && !exerciseCategories.includes(exercise.category)) {
+      return null;
+    }
+    if (exercise.primaryMuscle !== void 0 && !muscleGroups.includes(exercise.primaryMuscle)) {
+      return null;
+    }
+    if (exercise.secondaryMuscles !== void 0 && (!Array.isArray(exercise.secondaryMuscles) || !exercise.secondaryMuscles.every((m) => typeof m === "string" && muscleGroups.includes(m)))) {
+      return null;
+    }
+    if (exercise.equipmentRequired !== void 0 && (!Array.isArray(exercise.equipmentRequired) || !exercise.equipmentRequired.every((item) => typeof item === "string" && TRAINING_EQUIPMENT.includes(item)))) {
+      return null;
+    }
+    if (exercise.name !== void 0 && (typeof exercise.name !== "string" || exercise.name.trim().length === 0 || exercise.name.length > 100)) {
+      return null;
+    }
+    if (exercise.namePt !== void 0 && (typeof exercise.namePt !== "string" || exercise.namePt.trim().length === 0 || exercise.namePt.length > 100)) {
+      return null;
+    }
+    if (exercise.media !== void 0 && !isValidExerciseMedia(exercise.media)) {
+      return null;
+    }
     const optionalTextFields = ["tempo", "notes", "notesPt"];
-    if (!exerciseCategories.includes(category) || !Array.isArray(equipmentRequired) || !equipmentRequired.every((item) => typeof item === "string" && TRAINING_EQUIPMENT.includes(item)) || !isEquipmentAvailable(category, availableEquipment, equipmentRequired) || !muscleGroups.includes(primaryMuscle) || typeof exercise.name !== "string" || exercise.name.trim().length === 0 || exercise.name.length > 100 || typeof exercise.defaultWeight !== "number" || !Number.isFinite(exercise.defaultWeight) || exercise.defaultWeight < 0 || exercise.defaultWeight > 500 || typeof exercise.defaultReps !== "number" || !Number.isInteger(exercise.defaultReps) || exercise.defaultReps < 1 || exercise.defaultReps > 30 || typeof exercise.setsCount !== "number" || !Number.isInteger(exercise.setsCount) || exercise.setsCount < 1 || exercise.setsCount > 12 || typeof exercise.targetRestSeconds !== "number" || !Number.isInteger(exercise.targetRestSeconds) || exercise.targetRestSeconds < 0 || exercise.targetRestSeconds > 600) return null;
+    if (typeof exercise.defaultWeight !== "number" || !Number.isFinite(exercise.defaultWeight) || exercise.defaultWeight < 0 || exercise.defaultWeight > 500 || typeof exercise.defaultReps !== "number" || !Number.isInteger(exercise.defaultReps) || exercise.defaultReps < 1 || exercise.defaultReps > 30 || typeof exercise.setsCount !== "number" || !Number.isInteger(exercise.setsCount) || exercise.setsCount < 1 || exercise.setsCount > 12 || typeof exercise.targetRestSeconds !== "number" || !Number.isInteger(exercise.targetRestSeconds) || exercise.targetRestSeconds < 0 || exercise.targetRestSeconds > 600) return null;
     if (optionalTextFields.some(
       (field) => exercise[field] !== void 0 && (typeof exercise[field] !== "string" || exercise[field].length > (field === "tempo" ? 30 : 300))
     )) return null;
+    const authoritativeName = language === "pt" ? catalogExercise.namePt || catalogExercise.name : catalogExercise.name;
+    const resolvedNotes = typeof exercise.notes === "string" && exercise.notes.trim().length > 0 ? exercise.notes.trim() : language === "pt" ? catalogExercise.notesPt || catalogExercise.notes : catalogExercise.notes;
+    const resolvedNotesPt = typeof exercise.notesPt === "string" && exercise.notesPt.trim().length > 0 ? exercise.notesPt.trim() : catalogExercise.notesPt;
+    const resolvedTempo = typeof exercise.tempo === "string" && exercise.tempo.trim().length > 0 ? exercise.tempo.trim() : catalogExercise.tempo;
     exercises.push({
-      name: exercise.name.trim(),
-      primaryMuscle,
-      category,
+      exerciseId: catalogExercise.id,
+      name: authoritativeName,
+      ...catalogExercise.namePt ? { namePt: catalogExercise.namePt } : {},
+      primaryMuscle: catalogExercise.primaryMuscle,
+      ...catalogExercise.secondaryMuscles?.length ? { secondaryMuscles: [...catalogExercise.secondaryMuscles] } : {},
+      category: catalogExercise.category,
       defaultWeight: exercise.defaultWeight,
       defaultReps: exercise.defaultReps,
       setsCount: exercise.setsCount,
       targetRestSeconds: exercise.targetRestSeconds,
-      ...equipmentRequired.length ? { equipmentRequired } : {},
-      ...typeof exercise.tempo === "string" ? { tempo: exercise.tempo } : {},
-      ...typeof exercise.notes === "string" ? { notes: exercise.notes } : {},
-      ...typeof exercise.notesPt === "string" ? { notesPt: exercise.notesPt } : {}
+      ...catalogExercise.equipmentRequired?.length ? { equipmentRequired: [...catalogExercise.equipmentRequired] } : {},
+      ...resolvedTempo ? { tempo: resolvedTempo } : {},
+      ...resolvedNotes ? { notes: resolvedNotes } : {},
+      ...resolvedNotesPt ? { notesPt: resolvedNotesPt } : {},
+      ...catalogExercise.media ? { media: { ...catalogExercise.media } } : {}
     });
   }
   const actualTargetMuscles = new Set(exercises.map((exercise) => exercise.primaryMuscle));
@@ -806,11 +1030,11 @@ function adaptGeneratedWorkout(routine, experience) {
     })
   };
 }
-function validateAndAdaptGeneratedWorkout(value, availableEquipment, experience) {
-  const validated = validateGeneratedWorkout(value, availableEquipment);
+function validateAndAdaptGeneratedWorkout(value, availableEquipment, experience, options = {}) {
+  const validated = validateGeneratedWorkout(value, availableEquipment, options);
   if (!validated) return null;
   const adapted = adaptGeneratedWorkout(validated, experience);
-  return validateGeneratedWorkout(adapted, availableEquipment);
+  return validateGeneratedWorkout(adapted, availableEquipment, options);
 }
 function isEquipmentAvailable(category, availableEquipment, equipmentRequired = []) {
   const additionalEquipmentAvailable = equipmentRequired.every((required) => availableEquipment.includes(required));
@@ -889,12 +1113,19 @@ async function handleGenerateWorkout(req, res) {
     experienceLevel
   } = workoutRequest;
   try {
+    const eligibleExercises = getEligibleCatalogExercises(allowedEquipment);
+    if (eligibleExercises.length === 0) {
+      return res.status(422).json({
+        success: false,
+        message: "N\xE3o h\xE1 exerc\xEDcios eleg\xEDveis cadastrados para os equipamentos selecionados."
+      });
+    }
     if (!geminiClient.current && process.env.GEMINI_API_KEY) {
       geminiClient.current = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     }
     if (!geminiClient.current) {
       const routine = generateProfileFallback(focus, durationMinutes, language, allowedEquipment, experienceLevel, profileGoals);
-      const validatedFallback = routine ? validateAndAdaptGeneratedWorkout(routine, allowedEquipment, experienceLevel) : null;
+      const validatedFallback = routine ? validateAndAdaptGeneratedWorkout(routine, allowedEquipment, experienceLevel, { language }) : null;
       if (!validatedFallback) {
         return res.status(422).json({ success: false, message: "N\xE3o h\xE1 exerc\xEDcios cadastrados para os equipamentos selecionados." });
       }
@@ -918,6 +1149,10 @@ async function handleGenerateWorkout(req, res) {
     try {
       const langName = language === "en" ? "English" : "Portuguese (Portugu\xEAs do Brasil)";
       const freqExercisesText = Array.isArray(frequentExercises) && frequentExercises.length > 0 ? frequentExercises.join(", ") : "No exercise history available";
+      const catalogPromptLines = eligibleExercises.map((exercise) => {
+        const reqPart = exercise.equipmentRequired?.length ? ` | required: ${exercise.equipmentRequired.join(",")}` : "";
+        return `- ${exercise.id} | ${exercise.name} (${exercise.namePt}) | muscle: ${exercise.primaryMuscle} | category: ${exercise.category}${reqPart} | defaultSets: ${exercise.defaultSets} | defaultReps: ${exercise.defaultReps} | rest: ${exercise.restSeconds}s`;
+      }).join("\n");
       const prompt = `
 You are the elite conditioning coach behind FitFlow PWA.
 Create an athletic workout routine with progressive overload metrics in ${langName}.
@@ -933,38 +1168,37 @@ User Parameters & Historical Telemetry:
 - Athlete's Most Frequent Exercises from IndexedDB History: ${freqExercisesText}
 - Request Variation Seed: ${Date.now()}-${Math.random().toString(36).slice(2)}
 
+Eligible Catalog Exercises (you MUST select ONLY from these exact exerciseId values; NEVER invent free-form exercise names or IDs):
+${catalogPromptLines}
+
 Coaching Directives:
-1. Prioritize and intelligently incorporate the athlete's most frequent exercises (or progressive overload variations of them) that strictly match the available equipment.
-2. Only select exercises that can be performed using the specified available equipment.
-  For bodyweight movements that require apparatus (for example, hanging leg raises), declare that apparatus in equipmentRequired.
-3. Include specific tempo (e.g. 3-0-1-0), realistic default starting weights in kg, target rep ranges, and rest intervals.
-5. Use the request variation seed to ensure this routine is not identical to previous generations; vary exercise order, rep ranges, loads and rest periods while staying within equipment constraints.
+1. Select ONLY exercises whose exact exerciseId appears in "Eligible Catalog Exercises" above. Do NOT invent new exercises, do NOT repeat the same exerciseId twice in a routine, and do NOT select exercises outside the eligible list.
+2. Prioritize and intelligently incorporate the athlete's most frequent exercises (or compatible progressions from the eligible catalog) matching their focus and goals.
+3. Prescribe realistic defaultWeight in kg (0 for bodyweight/bands), defaultReps, setsCount, targetRestSeconds, and optional tempo/notes tailored to the athlete's experience and fatigue level.
+4. Use the request variation seed to vary exercise selection, order, rep ranges, loads, and rest periods while strictly respecting the catalog and duration constraints.
 
 Respond ONLY with valid JSON (no markdown formatting, no code block backticks) adhering strictly to this schema:
 {
   "title": "string (Creative athletic title)",
-  "category": "Push" | "Pull" | "Legs" | "Upper" | "Lower" | "Full Body",
+  "category": "Push" | "Pull" | "Legs" | "Upper" | "Lower" | "Full Body" | "Cardio & Core",
   "targetDurationMinutes": number,
   "difficulty": "Beginner" | "Intermediate" | "Advanced" | "Hardcore",
   "targetMuscles": ["chest" | "back" | "shoulders" | "biceps" | "triceps" | "quads" | "hamstrings" | "calves" | "core" | "glutes"],
   "xpReward": integer from 0 to 5000 (e.g. 380),
-  "coachingNotes": "string (1-2 motivational tactical sentences tailored to their frequent exercises)",
+  "coachingNotes": "string (1 concise motivational tactical sentence)",
   "exercises": [
     {
-      "name": "string (Exercise name)",
-      "primaryMuscle": "chest" | "back" | "shoulders" | "biceps" | "triceps" | "quads" | "hamstrings" | "calves" | "core" | "glutes",
-      "category": "barbell" | "dumbbell" | "cable" | "machine" | "bodyweight" | "bands",
-      "equipmentRequired": ["pull_up_bar"] (optional; list additional required equipment),
-      "defaultWeight": number (in kg, realistic default like 60, 80, 20),
-      "defaultReps": number (e.g. 8, 10, 12),
-      "setsCount": number (e.g. 3 or 4),
-      "targetRestSeconds": number (e.g. 60, 75, 90),
-      "tempo": "string (e.g. 3-0-1-0)",
-      "notes": "string (form cue)"
+      "exerciseId": "string (EXACT exerciseId from Eligible Catalog Exercises above, unique within this array)",
+      "defaultWeight": number (in kg, from 0 to 500),
+      "defaultReps": integer (from 1 to 30),
+      "setsCount": integer (from 1 to 12),
+      "targetRestSeconds": integer (from 0 to 600),
+      "tempo": "string (optional, e.g. 3-0-1-0)",
+      "notes": "string (optional concise form cue)"
     }
   ]
 }
-Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1\u20136 unique target muscles, exactly matching the primaryMuscle values used by the exercises. Include 4\u20135 focused exercises (do not exceed 5). Keep coachingNotes to 1 concise sentence. defaultWeight must be from 0 to 500 kg; defaultReps an integer from 1 to 30; setsCount an integer from 1 to 12; targetRestSeconds an integer from 0 to 600. Total sets must not exceed two thirds of targetDurationMinutes (rounded down). Use only declared fields; do not add fields.
+Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1\u20136 unique targetMuscles, matching the exact primaryMuscle values of the selected catalog exercises. Include 1\u20135 unique eligible exercises (never duplicate an exerciseId; if fewer than 4 eligible exercises exist, use up to the available count). Keep coachingNotes to 1 concise sentence. defaultWeight must be from 0 to 500 kg; defaultReps an integer from 1 to 30; setsCount an integer from 1 to 12; targetRestSeconds an integer from 0 to 600. Total sets must not exceed two thirds of targetDurationMinutes (rounded down). Use only declared fields; do not add fields.
 `;
       const timeoutPromise = new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
@@ -997,9 +1231,9 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1\u2013
       const text = response.text || "";
       const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
       const parsedData = JSON.parse(cleanJson);
-      const personalizedRoutine = validateAndAdaptGeneratedWorkout(parsedData, allowedEquipment, experienceLevel);
+      const personalizedRoutine = validateAndAdaptGeneratedWorkout(parsedData, allowedEquipment, experienceLevel, { language });
       if (!personalizedRoutine) {
-        throw new Error("Gemini returned an invalid or equipment-incompatible workout");
+        throw new Error("Gemini returned an invalid, non-catalog, or equipment-incompatible workout");
       }
       return res.status(200).json({
         success: true,
@@ -1021,7 +1255,7 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1\u2013
         experienceLevel,
         profileGoals
       );
-      const validatedFallback = fallback ? validateAndAdaptGeneratedWorkout(fallback, allowedEquipment, experienceLevel) : null;
+      const validatedFallback = fallback ? validateAndAdaptGeneratedWorkout(fallback, allowedEquipment, experienceLevel, { language }) : null;
       if (!validatedFallback) {
         return res.status(422).json({ success: false, message: "N\xE3o h\xE1 exerc\xEDcios cadastrados para os equipamentos selecionados." });
       }
@@ -1066,11 +1300,16 @@ function generateProfileFallback(focus, duration, language, equipment, experienc
   }
   let exercises = [];
   if (!prefersFullBody) {
-    const compatible = Object.values(EXERCISE_DATABASE).filter((exercise) => isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired) && targetFocusMuscles.includes(exercise.primaryMuscle)).sort((left, right) => left.id.localeCompare(right.id));
+    const compatible = Object.values(EXERCISE_DATABASE).filter(
+      (exercise) => hasValidExerciseMedia(exercise) && isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired) && targetFocusMuscles.includes(exercise.primaryMuscle)
+    ).sort((left, right) => left.id.localeCompare(right.id));
     const count = Math.min(compatible.length, 5);
     exercises = compatible.slice(0, count).map((exercise) => ({
+      exerciseId: exercise.id,
       name: isPt ? exercise.namePt : exercise.name,
+      ...exercise.namePt ? { namePt: exercise.namePt } : {},
       primaryMuscle: exercise.primaryMuscle,
+      ...exercise.secondaryMuscles?.length ? { secondaryMuscles: exercise.secondaryMuscles } : {},
       category: exercise.category,
       ...exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {},
       // Fallback sem avaliação individual: não prescreve carga. O usuário ajusta pela técnica e pelo esforço percebido (RPE).
@@ -1080,7 +1319,8 @@ function generateProfileFallback(focus, duration, language, equipment, experienc
       targetRestSeconds: exercise.restSeconds,
       tempo: exercise.tempo || "",
       notes: exercise.notes || "",
-      ...exercise.notesPt ? { notesPt: exercise.notesPt } : {}
+      ...exercise.notesPt ? { notesPt: exercise.notesPt } : {},
+      ...exercise.media ? { media: exercise.media } : {}
     }));
   }
   if (exercises.length === 0) {
@@ -1088,10 +1328,15 @@ function generateProfileFallback(focus, duration, language, equipment, experienc
   }
   const needsExerciseCatalogFallback = exercises.length === 0;
   if (prefersFullBody || needsExerciseCatalogFallback) {
-    const compatible = Object.values(EXERCISE_DATABASE).filter((exercise) => isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired)).sort((left, right) => left.id.localeCompare(right.id)).slice(0, 5);
+    const compatible = Object.values(EXERCISE_DATABASE).filter(
+      (exercise) => hasValidExerciseMedia(exercise) && isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired)
+    ).sort((left, right) => left.id.localeCompare(right.id)).slice(0, 5);
     exercises = compatible.map((exercise) => ({
+      exerciseId: exercise.id,
       name: isPt ? exercise.namePt : exercise.name,
+      ...exercise.namePt ? { namePt: exercise.namePt } : {},
       primaryMuscle: exercise.primaryMuscle,
+      ...exercise.secondaryMuscles?.length ? { secondaryMuscles: exercise.secondaryMuscles } : {},
       category: exercise.category,
       ...exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {},
       // Fallback sem avaliação individual: não prescreve carga. O usuário ajusta pela técnica e pelo esforço percebido (RPE).
@@ -1101,7 +1346,8 @@ function generateProfileFallback(focus, duration, language, equipment, experienc
       targetRestSeconds: exercise.restSeconds,
       tempo: exercise.tempo || "",
       notes: exercise.notes || "",
-      ...exercise.notesPt ? { notesPt: exercise.notesPt } : {}
+      ...exercise.notesPt ? { notesPt: exercise.notesPt } : {},
+      ...exercise.media ? { media: exercise.media } : {}
     }));
   } else if (experience === "beginner") {
     exercises = exercises.map((exercise) => ({ ...exercise, setsCount: Math.min(3, exercise.setsCount) }));
@@ -1126,7 +1372,27 @@ function generateProfileFallback(focus, duration, language, equipment, experienc
     exercises,
     coachingNotes: isPt ? `Rotina adaptada para seus objetivos de ${describeGoals(goals)} e n\xEDvel ${experiencePrompt[experience]}. Carga n\xE3o prescrita: comece sem peso ou com carga leve, ajuste pela execu\xE7\xE3o t\xE9cnica e pelo esfor\xE7o percebido (RPE). Reduza a carga ou interrompa o exerc\xEDcio se houver dor, tontura, falta de ar ou sintomas anormais.` : `Routine adapted for your goals (${describeGoals(goals)}) and ${experiencePrompt[experience]} experience level. No load prescribed: start with no weight or a light load, adjust by technique and perceived exertion (RPE). Reduce the load or stop the exercise if you feel pain, dizziness, shortness of breath, or abnormal symptoms.`
   };
-  return validateGeneratedWorkout(candidate, equipment);
+  return validateGeneratedWorkout(candidate, equipment, { language });
+}
+function buildFallbackExerciseEntry(exerciseId, isPt) {
+  const ex = EXERCISE_DATABASE[exerciseId];
+  return {
+    exerciseId: ex.id,
+    name: isPt ? ex.namePt : ex.name,
+    ...ex.namePt ? { namePt: ex.namePt } : {},
+    primaryMuscle: ex.primaryMuscle,
+    ...ex.secondaryMuscles?.length ? { secondaryMuscles: ex.secondaryMuscles } : {},
+    category: ex.category,
+    ...ex.equipmentRequired ? { equipmentRequired: ex.equipmentRequired } : {},
+    defaultWeight: 0,
+    defaultReps: ex.defaultReps,
+    setsCount: ex.defaultSets,
+    targetRestSeconds: ex.restSeconds,
+    ...ex.tempo ? { tempo: ex.tempo } : {},
+    ...ex.notes ? { notes: ex.notes } : {},
+    ...ex.notesPt ? { notesPt: ex.notesPt } : {},
+    ...ex.media ? { media: ex.media } : {}
+  };
 }
 function generateFallbackRoutine(focus, duration, language) {
   const isPt = language !== "en";
@@ -1137,54 +1403,14 @@ function generateFallbackRoutine(focus, duration, language) {
       category: "Pull",
       targetDurationMinutes: duration,
       difficulty: "Advanced",
-      targetMuscles: ["back", "biceps", "hamstrings"],
+      targetMuscles: ["back", "biceps"],
       xpReward: 380,
       coachingNotes: isPt ? "Foque em puxar com os cotovelos e sustentar 1s no pico de contra\xE7\xE3o." : "Drive with your elbows and pause for 1s at peak contraction.",
       exercises: [
-        {
-          name: isPt ? "Levantamento Terra Convencional" : "Conventional Deadlift",
-          primaryMuscle: "back",
-          category: "barbell",
-          defaultWeight: 0,
-          defaultReps: 5,
-          setsCount: 4,
-          targetRestSeconds: 90,
-          tempo: "2-1-1-0",
-          notes: isPt ? "Trave o abd\xF4men e exploda na subida." : "Brace core and explode through hips."
-        },
-        {
-          name: isPt ? "Puxada Alta na Polia" : "Lat Pulldown",
-          primaryMuscle: "back",
-          category: "cable",
-          defaultWeight: 0,
-          defaultReps: 10,
-          setsCount: 4,
-          targetRestSeconds: 75,
-          tempo: "2-0-1-1",
-          notes: isPt ? "Puxe a barra at\xE9 a clav\xEDcula." : "Pull bar to clavicle."
-        },
-        {
-          name: isPt ? "Remada Curvada com Barra" : "Bent-Over Barbell Row",
-          primaryMuscle: "back",
-          category: "barbell",
-          defaultWeight: 0,
-          defaultReps: 8,
-          setsCount: 3,
-          targetRestSeconds: 75,
-          tempo: "2-0-1-0",
-          notes: isPt ? "Tronco fixo em 45 graus." : "Lock torso at 45 degrees."
-        },
-        {
-          name: isPt ? "Rosca Direta com Barra W" : "EZ-Bar Bicep Curl",
-          primaryMuscle: "biceps",
-          category: "barbell",
-          defaultWeight: 0,
-          defaultReps: 10,
-          setsCount: 3,
-          targetRestSeconds: 60,
-          tempo: "2-0-1-1",
-          notes: isPt ? "Cotovelos firmes ao lado do tronco." : "Keep elbows pinned to sides."
-        }
+        buildFallbackExerciseEntry("barbell_deadlift", isPt),
+        buildFallbackExerciseEntry("lat_pulldown", isPt),
+        buildFallbackExerciseEntry("barbell_row", isPt),
+        buildFallbackExerciseEntry("barbell_curl", isPt)
       ]
     };
   }
@@ -1197,50 +1423,10 @@ function generateFallbackRoutine(focus, duration, language) {
     xpReward: 380,
     coachingNotes: isPt ? "Controle a fase exc\xEAntrica da descida para gerar o m\xE1ximo de est\xEDmulo hipertr\xF3fico." : "Control the eccentric descent to maximize mechanical hypertrophy tension.",
     exercises: [
-      {
-        name: isPt ? "Supino Reto com Barra" : "Barbell Bench Press",
-        primaryMuscle: "chest",
-        category: "barbell",
-        defaultWeight: 0,
-        defaultReps: 8,
-        setsCount: 4,
-        targetRestSeconds: 90,
-        tempo: "3-0-1-0",
-        notes: isPt ? "Esc\xE1pulas aduzidas e p\xE9s cravados no ch\xE3o." : "Retract scapula and drive feet into ground."
-      },
-      {
-        name: isPt ? "Supino Inclinado com Halteres" : "Incline Dumbbell Press",
-        primaryMuscle: "chest",
-        category: "dumbbell",
-        defaultWeight: 0,
-        defaultReps: 10,
-        setsCount: 3,
-        targetRestSeconds: 75,
-        tempo: "2-1-1-0",
-        notes: isPt ? "Banco a 30 graus, alongamento completo na base." : "30-degree incline, deep stretch at bottom."
-      },
-      {
-        name: isPt ? "Desenvolvimento com Halteres" : "Dumbbell Shoulder Press",
-        primaryMuscle: "shoulders",
-        category: "dumbbell",
-        defaultWeight: 0,
-        defaultReps: 10,
-        setsCount: 3,
-        targetRestSeconds: 75,
-        tempo: "2-0-1-0",
-        notes: isPt ? "Trave o core ao empurrar verticalmente." : "Lock core while pressing overhead."
-      },
-      {
-        name: isPt ? "Tr\xEDceps Corda no Cross" : "Cable Triceps Pushdown",
-        primaryMuscle: "triceps",
-        category: "cable",
-        defaultWeight: 0,
-        defaultReps: 12,
-        setsCount: 3,
-        targetRestSeconds: 60,
-        tempo: "2-0-1-1",
-        notes: isPt ? "Abra a corda no final da extens\xE3o." : "Flare rope at full extension."
-      }
+      buildFallbackExerciseEntry("bench_press", isPt),
+      buildFallbackExerciseEntry("incline_db_press", isPt),
+      buildFallbackExerciseEntry("lateral_raise", isPt),
+      buildFallbackExerciseEntry("tricep_pushdown", isPt)
     ]
   };
 }

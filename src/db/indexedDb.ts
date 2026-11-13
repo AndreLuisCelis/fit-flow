@@ -90,7 +90,7 @@ export class FitFlowDatabase {
         const routinesStore = tx.objectStore('routines');
         const exercisesStore = tx.objectStore('exercises');
 
-        // Add new definitions and migrate localized notes/equipment requirements.
+        // Add new definitions and non-destructively migrate localized notes, equipment requirements, and media metadata.
         Object.values(EXERCISE_DATABASE).forEach((exercise) => {
           const existingRequest = exercisesStore.get(exercise.id);
           existingRequest.onsuccess = () => {
@@ -108,6 +108,13 @@ export class FitFlowDatabase {
                 JSON.stringify(existing.equipmentRequired) !== JSON.stringify(exercise.equipmentRequired)
               ) {
                 existing.equipmentRequired = exercise.equipmentRequired;
+                changed = true;
+              }
+              if (
+                exercise.media &&
+                JSON.stringify(existing.media) !== JSON.stringify(exercise.media)
+              ) {
+                existing.media = exercise.media;
                 changed = true;
               }
               if (changed) exercisesStore.put(existing);

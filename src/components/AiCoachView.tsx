@@ -23,7 +23,7 @@ import {
   Database,
   ArrowRight
 } from 'lucide-react';
-import { WorkoutRoutine, CompletedSessionSummary, ExerciseInRoutine, SetEntry, Exercise } from '../types/workout';
+import { WorkoutRoutine, CompletedSessionSummary, ExerciseInRoutine, SetEntry } from '../types/workout';
 import { UserProfile, ProfileGoal, TrainingEquipment } from '../types/profile';
 import { EXERCISE_DATABASE } from '../data/presetRoutines';
 import { fitFlowDB } from '../db/indexedDb';
@@ -188,7 +188,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
       }
 
       const data = await response.json();
-      const validatedRoutine = validateGeneratedWorkout(data.routine, selectedEquipments as TrainingEquipment[]);
+      const validatedRoutine = validateGeneratedWorkout(data.routine, selectedEquipments as TrainingEquipment[], { language });
       if (!validatedRoutine) {
         throw new Error('Invalid response structure');
       }
@@ -225,32 +225,15 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
     if (!generatedRoutine) throw new Error('No routine generated');
 
     const exercisesInRoutine: ExerciseInRoutine[] = generatedRoutine.exercises.map((ex, idx) => {
-      const exerciseId = `${generatedRoutineId}-ex-${idx}`;
+      const exerciseId = ex.exerciseId;
       const generatedSets: SetEntry[] = [];
       const setsCount = ex.setsCount;
       const defaultWeight = ex.defaultWeight;
       const defaultReps = ex.defaultReps;
 
-      const exercise: Exercise = {
-        id: exerciseId,
-        name: ex.name,
-        namePt: ex.name,
-        primaryMuscle: ex.primaryMuscle,
-        category: ex.category,
-        equipmentRequired: ex.equipmentRequired,
-        defaultSets: setsCount,
-        defaultReps,
-        defaultWeight,
-        restSeconds: ex.targetRestSeconds,
-        notes: ex.notes,
-        notesPt: language === 'pt' ? ex.notes : ex.notesPt,
-        tempo: ex.tempo,
-      };
-      EXERCISE_DATABASE[exerciseId] = exercise;
-
       for (let i = 1; i <= setsCount; i++) {
         generatedSets.push({
-          id: `set-gen-${idx}-${i}`,
+          id: `set-gen-${exerciseId}-${idx}-${i}`,
           setNumber: i,
           weight: defaultWeight,
           reps: defaultReps,
@@ -263,7 +246,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
         exerciseId,
         sets: generatedSets,
         targetRestSeconds: ex.targetRestSeconds,
-        customNotes: ex.notes || ex.tempo ? `Cadência: ${ex.tempo}. ${ex.notes || ''}` : undefined,
+        customNotes: ex.notes || ex.tempo ? `Cadência: ${ex.tempo || '-'}. ${ex.notes || ''}`.trim() : undefined,
       };
     });
 
@@ -651,7 +634,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
             <div className="space-y-2.5">
               {generatedRoutine.exercises.map((ex, idx) => (
                 <div
-                  key={idx}
+                  key={`${ex.exerciseId}-${idx}`}
                   className="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
                   <div className="flex items-center gap-3">
@@ -660,7 +643,7 @@ export const AiCoachView: React.FC<AiCoachViewProps> = ({
                     </div>
                     <div>
                       <h5 className="text-sm font-bold text-white flex items-center gap-2">
-                        <span>{ex.name}</span>
+                        <span>{language === 'pt' ? (ex.namePt || ex.name) : ex.name}</span>
                         <span className="text-[10px] font-mono-numbers uppercase px-2 py-0.2 rounded bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/30">
                           {getMuscleLabel(ex.primaryMuscle, language)}
                         </span>

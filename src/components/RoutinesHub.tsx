@@ -87,8 +87,9 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
           fitFlowDB.getExercises(),
         ]);
         setExerciseDatabase(current => ({
-          ...current,
           ...Object.fromEntries(storedExercises.map(exercise => [exercise.id, exercise])),
+          ...current,
+          ...EXERCISE_DATABASE,
         }));
         if (storedRoutines && storedRoutines.length > 0) {
           const normalizedRoutines = storedRoutines.map(routine => (
@@ -161,9 +162,8 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
 
         if (response.ok) {
           const data = await response.json();
-          const r = validateGeneratedWorkout(data.routine, profile.equipment);
+          const r = validateGeneratedWorkout(data.routine, profile.equipment, { language });
           if (r) {
-            const generatedExercises: Exercise[] = [];
             const newRoutine: WorkoutRoutine = {
               id: `gemini-routine-${Date.now()}`,
               title: r.title,
@@ -174,49 +174,23 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
               targetMuscles: r.targetMuscles,
               xpReward: r.xpReward,
               createdAt: new Date().toISOString(),
-              exercises: (r.exercises || []).map((ex: any, idx: number) => {
-                const exId = `ex-${Date.now()}-${idx}`;
-                // register in exercise database if new
-                const newExercise: Exercise = {
-                    id: exId,
-                    name: ex.name,
-                    namePt: ex.name,
-                    primaryMuscle: ex.primaryMuscle,
-                    category: ex.category,
-                    equipmentRequired: ex.equipmentRequired,
-                    defaultSets: ex.setsCount,
-                    defaultReps: ex.defaultReps,
-                    defaultWeight: ex.defaultWeight,
-                    restSeconds: ex.targetRestSeconds,
-                    notes: ex.notes,
-                    notesPt: language === 'pt' ? ex.notes : ex.notesPt,
-                    tempo: ex.tempo,
-                };
-                EXERCISE_DATABASE[exId] = newExercise;
-                generatedExercises.push(newExercise);
-
-                return {
-                  exerciseId: exId,
-                  targetRestSeconds: ex.targetRestSeconds,
-                  sets: Array.from({ length: ex.setsCount }, (_, sIdx) => ({
-                    id: `set-${exId}-${sIdx + 1}`,
-                    setNumber: sIdx + 1,
-                    weight: ex.defaultWeight,
-                    reps: ex.defaultReps,
-                    rpe: 8,
-                    isCompleted: false,
-                  })),
-                };
-              }),
+              exercises: (r.exercises || []).map((ex) => ({
+                exerciseId: ex.exerciseId,
+                targetRestSeconds: ex.targetRestSeconds,
+                ...(ex.notes ? { customNotes: ex.notes } : {}),
+                sets: Array.from({ length: ex.setsCount }, (_, sIdx) => ({
+                  id: `set-${ex.exerciseId}-${Date.now()}-${sIdx + 1}`,
+                  setNumber: sIdx + 1,
+                  weight: ex.defaultWeight,
+                  reps: ex.defaultReps,
+                  rpe: 8,
+                  isCompleted: false,
+                })),
+              })),
             };
 
             // Save to IndexedDB!
-            await Promise.all(generatedExercises.map(exercise => fitFlowDB.saveExercise(exercise)));
             await fitFlowDB.saveRoutine(newRoutine);
-            setExerciseDatabase(current => ({
-              ...current,
-              ...Object.fromEntries(generatedExercises.map(exercise => [exercise.id, exercise])),
-            }));
             setRoutinesList(prev => [newRoutine, ...prev]);
             setGeneratedRoutine(newRoutine);
             setIsAiOnlineSource(true);
@@ -261,11 +235,11 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
       }
 
       let compatibleExercises = chosenExercises.filter(exerciseId => {
-        const exercise = exerciseDatabase[exerciseId];
+        const exercise = EXERCISE_DATABASE[exerciseId];
         return exercise && isEquipmentAvailable(exercise.category, profile.equipment, exercise.equipmentRequired);
       });
       if (compatibleExercises.length < 3) {
-        const additionalExercises = Object.values(exerciseDatabase)
+        const additionalExercises = Object.values(EXERCISE_DATABASE)
           .filter(exercise =>
             !compatibleExercises.includes(exercise.id) &&
             isEquipmentAvailable(exercise.category, profile.equipment, exercise.equipmentRequired))
@@ -277,8 +251,6 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
           .slice(0, 5 - compatibleExercises.length)
           .map(exercise => exercise.id);
         compatibleExercises = [...compatibleExercises, ...additionalExercises];
-        // Preserve original category and routine name even when adding additional exercises
-        // The original focus selection should not be overridden to Full Body
       }
       if (compatibleExercises.length === 0) {
         setGenerationError(language === 'pt'
@@ -292,11 +264,12 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
         category,
         targetDurationMinutes: aiDuration,
         difficulty: profile.experience === 'beginner' ? 'Beginner' as const : profile.experience === 'intermediate' ? 'Intermediate' as const : 'Advanced' as const,
-        targetMuscles: [...new Set(compatibleExercises.map((id) => exerciseDatabase[id].primaryMuscle))],
+        targetMuscles: [...new Set(compatibleExercises.map((id) => EXERCISE_DATABASE[id].primaryMuscle))],
         xpReward: 380,
         exercises: compatibleExercises.map((id) => {
-          const exercise = exerciseDatabase[id];
+          const exercise = EXERCISE_DATABASE[id];
           return {
+            exerciseId: exercise.id,
             name: language === 'pt' ? exercise.namePt : exercise.name,
             primaryMuscle: exercise.primaryMuscle,
             category: exercise.category,
@@ -311,7 +284,12 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
           };
         }),
       };
-      const validatedFallback = validateAndAdaptGeneratedWorkout(fallbackCandidate, profile.equipment, profile.experience);
+      const validatedFallback = validateAndAdaptGeneratedWorkout(
+        fallbackCandidate,
+        profile.equipment,
+        profile.experience,
+        { language },
+      );
       if (!validatedFallback) {
         setGenerationError(language === 'pt'
           ? 'Não foi possível validar uma rotina compatível com os equipamentos selecionados.'
@@ -319,7 +297,6 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
         return;
       }
 
-      const generatedExercises: Exercise[] = [];
       const newRoutine: WorkoutRoutine = {
         id: `offline-routine-${Date.now()}`,
         title: validatedFallback.title,
@@ -329,48 +306,23 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
         difficulty: validatedFallback.difficulty,
         targetMuscles: validatedFallback.targetMuscles,
         xpReward: validatedFallback.xpReward,
-        exercises: validatedFallback.exercises.map((ex, index) => {
-          const exId = `offline-ex-${Date.now()}-${index}`;
-          const baseEx = exerciseDatabase[compatibleExercises[index]];
-          const generatedExercise: Exercise = {
-            ...baseEx,
-            id: exId,
-            name: ex.name,
-            namePt: ex.name,
-            primaryMuscle: ex.primaryMuscle,
-            category: ex.category,
-            equipmentRequired: ex.equipmentRequired,
-            defaultSets: ex.setsCount,
-            defaultReps: ex.defaultReps,
-            defaultWeight: ex.defaultWeight,
-            restSeconds: ex.targetRestSeconds,
-            tempo: ex.tempo,
-            notes: ex.notes,
-            notesPt: ex.notesPt,
-          };
-          generatedExercises.push(generatedExercise);
-          return {
-            exerciseId: exId,
-            targetRestSeconds: ex.targetRestSeconds,
-            sets: Array.from({ length: ex.setsCount }, (_, i) => ({
-              id: `offline-set-${exId}-${i + 1}`,
-              setNumber: i + 1,
-              weight: ex.defaultWeight,
-              reps: ex.defaultReps,
-              rpe: 8,
-              isCompleted: false,
-            })),
-          };
-        }),
+        createdAt: new Date().toISOString(),
+        exercises: validatedFallback.exercises.map((ex) => ({
+          exerciseId: ex.exerciseId,
+          targetRestSeconds: ex.targetRestSeconds,
+          sets: Array.from({ length: ex.setsCount }, (_, i) => ({
+            id: `offline-set-${ex.exerciseId}-${Date.now()}-${i + 1}`,
+            setNumber: i + 1,
+            weight: ex.defaultWeight,
+            reps: ex.defaultReps,
+            rpe: 8,
+            isCompleted: false,
+          })),
+        })),
       };
 
       // Save to IndexedDB!
-      await Promise.all(generatedExercises.map(exercise => fitFlowDB.saveExercise(exercise)));
       await fitFlowDB.saveRoutine(newRoutine);
-      setExerciseDatabase(current => ({
-        ...current,
-        ...Object.fromEntries(generatedExercises.map(exercise => [exercise.id, exercise])),
-      }));
       setRoutinesList(prev => [newRoutine, ...prev]);
       setGeneratedRoutine(newRoutine);
       setIsAiOnlineSource(false);
@@ -536,7 +488,7 @@ export const RoutinesHub: React.FC<RoutinesHubProps> = ({
                     if (!exData) return null;
                     const exName = language === 'pt' ? exData.namePt : exData.name;
                     return (
-                      <div key={item.exerciseId} className="flex items-center justify-between text-xs text-slate-300 font-mono-numbers">
+                      <div key={`${item.exerciseId}-${idx}`} className="flex items-center justify-between text-xs text-slate-300 font-mono-numbers">
                         <span className="flex items-center gap-2">
                           <span className="text-slate-500 text-[10px]">0{idx + 1}.</span>
                           <span className="truncate max-w-[200px] sm:max-w-xs">{exName}</span>
