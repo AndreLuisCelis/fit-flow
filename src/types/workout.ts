@@ -30,6 +30,27 @@ export interface SetEntry {
   isDropSet?: boolean;
 }
 
+export type ExerciseMediaType = 'image' | 'gif' | 'lottie' | 'webp' | 'mp4' | 'webm' | 'svg';
+
+export interface ExerciseMedia {
+  /** URL externa estável da imagem estática principal (fallback obrigatório para animações) */
+  imageUrl: string;
+  /** Texto alternativo acessível em inglês */
+  alt: string;
+  /** Texto alternativo acessível em português (opcional) */
+  altPt?: string;
+  /** URL externa opcional de animação (GIF, WebP animado, Lottie) */
+  animationUrl?: string;
+  /** URL externa opcional de vídeo demonstrativo */
+  videoUrl?: string;
+  /** Tipo/formato da mídia principal */
+  mediaType: ExerciseMediaType;
+  /** Identificador único do ativo de mídia no catálogo externo */
+  assetId: string;
+  /** Versão do ativo para rastreabilidade e cache */
+  version: string;
+}
+
 export interface Exercise {
   id: string;
   name: string;
@@ -46,6 +67,7 @@ export interface Exercise {
   notesPt?: string;
   tempo?: string; // e.g. "3-1-1-0"
   guide?: any; // ExerciseGuide from presetRoutines
+  media?: ExerciseMedia;
 }
 
 export interface ExerciseInRoutine {

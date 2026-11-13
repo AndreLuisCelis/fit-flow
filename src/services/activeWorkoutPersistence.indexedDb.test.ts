@@ -158,3 +158,116 @@ test('real IndexedDB abort rolls back both stores and a retry recovers successfu
   assert.equal(await db.getActiveWorkout(), null);
   assert.deepEqual(await db.getHistory(), [summary]);
 });
+
+test('real IndexedDB restores legacy active workout sessions without media and preserves sessions with media', async () => {
+  const factory = new IDBFactory();
+
+  // 1. Legacy active workout without media field on Exercise
+  const legacyDb = createFitFlowDatabase(factory);
+  const legacySession: ActiveWorkoutSession = {
+    routineId: 'legacy-routine',
+    routineTitle: 'Legacy Session',
+    startTime: 1700000100000,
+    currentExerciseIndex: 0,
+    exercises: [
+      {
+        exercise: {
+          id: 'legacy-ex-1',
+          name: 'Legacy Push-up',
+          namePt: 'Flexão Legada',
+          primaryMuscle: 'chest',
+          category: 'bodyweight',
+          defaultSets: 3,
+          defaultReps: 12,
+          defaultWeight: 0,
+          restSeconds: 60,
+        },
+        sets: [
+          { id: 's1', setNumber: 1, weight: 0, reps: 12, isCompleted: true },
+        ],
+        targetRestSeconds: 60,
+      },
+    ],
+    totalVolumeMovedKg: 0,
+    setsCompletedCount: 1,
+    isFinished: false,
+  };
+  await legacyDb.saveActiveWorkout(legacySession, null);
+
+  const reopenedLegacyDb = createFitFlowDatabase(factory);
+  const restoredLegacy = await reopenedLegacyDb.getActiveWorkout();
+  assert.ok(restoredLegacy);
+  assert.deepEqual(restoredLegacy.session, legacySession);
+  assert.equal(restoredLegacy.session.exercises[0].exercise.media, undefined);
+
+  // 2. Active workout with structured ExerciseMedia
+  const sessionWithMedia: ActiveWorkoutSession = {
+    ...legacySession,
+    routineId: 'media-routine',
+    exercises: [
+      {
+        ...legacySession.exercises[0],
+        exercise: {
+          ...legacySession.exercises[0].exercise,
+          id: 'push_up',
+          media: {
+            imageUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webp',
+            animationUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.lottie',
+            alt: 'Push-up form',
+            altPt: 'Execução da flexão',
+            mediaType: 'lottie',
+            assetId: 'exercise_push_up',
+            version: '1.0.0',
+          },
+        },
+      },
+    ],
+  };
+  await reopenedLegacyDb.saveActiveWorkout(sessionWithMedia, null);
+  const reopenedMediaDb = createFitFlowDatabase(factory);
+  const restoredMedia = await reopenedMediaDb.getActiveWorkout();
+  assert.ok(restoredMedia);
+  assert.deepEqual(restoredMedia.session.exercises[0].exercise.media, sessionWithMedia.exercises[0].exercise.media);
+});
+
+test('real IndexedDB non-destructively backfills catalog media while preserving legacy custom exercises and routines', async () => {
+  const factory = new IDBFactory();
+  const db = createFitFlowDatabase(factory);
+
+  const legacyCustomExercise = {
+    id: 'legacy-custom-ex-1',
+    name: 'Legacy Custom Exercise',
+    namePt: 'Exercício Customizado Antigo',
+    primaryMuscle: 'chest' as const,
+    category: 'bodyweight' as const,
+    defaultSets: 3,
+    defaultReps: 10,
+    defaultWeight: 0,
+    restSeconds: 60,
+  };
+  await db.saveExercise(legacyCustomExercise);
+
+  // Simulate an older persisted catalog exercise that existed before media was added
+  await db.saveExercise({
+    id: 'push_up',
+    name: 'Push-Up',
+    namePt: 'Flexão de Braço',
+    primaryMuscle: 'chest',
+    category: 'bodyweight',
+    defaultSets: 3,
+    defaultReps: 10,
+    defaultWeight: 0,
+    restSeconds: 60,
+  });
+
+  // Reopen DB triggers seedDefaultsIfEmpty
+  const reopenedDb = createFitFlowDatabase(factory);
+  const exercises = await reopenedDb.getExercises();
+  const byId = Object.fromEntries(exercises.map((item) => [item.id, item]));
+
+  // Custom legacy exercise remains completely preserved
+  assert.deepEqual(byId['legacy-custom-ex-1'], legacyCustomExercise);
+  // Catalog exercise receives non-destructive media backfill
+  assert.ok(byId['push_up']?.media?.imageUrl.startsWith('https://'));
+});
+

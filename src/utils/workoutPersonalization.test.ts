@@ -1,15 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Exercise, WorkoutRoutine } from '../types/workout';
-import { UserProfile } from '../types/profile';
+import { TrainingEquipment, UserProfile } from '../types/profile';
 import {
   adaptGeneratedWorkout,
+  getEligibleCatalogExercises,
+  hasValidExerciseMedia,
   isRoutineCompatible,
+  isValidExerciseMedia,
   rankCompatibleRoutines,
   validateAndAdaptGeneratedWorkout,
   validateGeneratedWorkout,
   validateWorkoutRequest,
 } from './workoutPersonalization';
+import { EXERCISE_DATABASE } from '../data/presetRoutines';
 
 const database: Record<string, Exercise> = {
   bodyweight_squat: {
@@ -54,6 +58,7 @@ function generatedWorkout(overrides: Record<string, unknown> = {}) {
     xpReward: 100,
     coachingNotes: 'Keep controlled form.',
     exercises: [{
+      exerciseId: 'bodyweight_squat',
       name: 'Bodyweight squat',
       primaryMuscle: 'quads',
       category: 'bodyweight',
@@ -135,11 +140,23 @@ test('generated workout validation rejects exercises outside the selected equipm
     title: 'Bodyweight session', category: 'Full Body', targetDurationMinutes: 30,
     difficulty: 'Beginner', targetMuscles: ['quads'], xpReward: 100,
     exercises: [{
+      exerciseId: 'barbell_squat',
       name: 'Barbell squat', primaryMuscle: 'quads', category: 'barbell',
       defaultWeight: 20, defaultReps: 10, setsCount: 3, targetRestSeconds: 60,
     }],
   };
   assert.equal(validateGeneratedWorkout(generated, ['bodyweight']), null);
+
+  // Even if the AI claims category is bodyweight, catalog metadata blocks incompatible equipment
+  const spoofedGenerated = {
+    ...generated,
+    exercises: [{
+      exerciseId: 'barbell_squat',
+      name: 'Fake bodyweight squat', primaryMuscle: 'quads', category: 'bodyweight',
+      defaultWeight: 0, defaultReps: 10, setsCount: 3, targetRestSeconds: 60,
+    }],
+  };
+  assert.equal(validateGeneratedWorkout(spoofedGenerated, ['bodyweight']), null);
 });
 
 test('generated workout validation rejects bodyweight movements that need unavailable apparatus', () => {
@@ -147,6 +164,7 @@ test('generated workout validation rejects bodyweight movements that need unavai
     title: 'Hanging core', category: 'Full Body', targetDurationMinutes: 30,
     difficulty: 'Beginner', targetMuscles: ['core'], xpReward: 100,
     exercises: [{
+      exerciseId: 'hanging_leg_raise',
       name: 'Hanging leg raise', primaryMuscle: 'core', category: 'bodyweight',
       equipmentRequired: ['pull_up_bar'], defaultWeight: 0, defaultReps: 10,
       setsCount: 3, targetRestSeconds: 60,
@@ -161,11 +179,15 @@ test('generated workout validation accepts a well-formed compatible routine', ()
     title: 'Bodyweight session', category: 'Full Body', targetDurationMinutes: 30,
     difficulty: 'Beginner', targetMuscles: ['quads'], xpReward: 100,
     exercises: [{
+      exerciseId: 'bodyweight_squat',
       name: 'Bodyweight squat', primaryMuscle: 'quads', category: 'bodyweight',
       defaultWeight: 0, defaultReps: 10, setsCount: 3, targetRestSeconds: 60,
     }],
   };
-  assert.equal(validateGeneratedWorkout(generated, ['bodyweight'])?.exercises.length, 1);
+  const result = validateGeneratedWorkout(generated, ['bodyweight']);
+  assert.equal(result?.exercises.length, 1);
+  assert.equal(result?.exercises[0].exerciseId, 'bodyweight_squat');
+  assert.ok(result?.exercises[0].media?.imageUrl);
 });
 
 test('generated workout is capped to beginner difficulty and volume', () => {
@@ -173,6 +195,7 @@ test('generated workout is capped to beginner difficulty and volume', () => {
     title: 'Advanced session', category: 'Push', targetDurationMinutes: 45,
     difficulty: 'Hardcore', targetMuscles: ['chest'], xpReward: 300,
     exercises: [{
+      exerciseId: 'bench_press',
       name: 'Bench press', primaryMuscle: 'chest', category: 'barbell',
       defaultWeight: 60, defaultReps: 8, setsCount: 6, targetRestSeconds: 90,
     }],
@@ -190,6 +213,7 @@ test('advanced users may receive advanced routines without being downgraded', ()
     title: 'Advanced session', category: 'Push', targetDurationMinutes: 45,
     difficulty: 'Advanced', targetMuscles: ['chest'], xpReward: 300,
     exercises: [{
+      exerciseId: 'bench_press',
       name: 'Bench press', primaryMuscle: 'chest', category: 'barbell',
       defaultWeight: 60, defaultReps: 8, setsCount: 4, targetRestSeconds: 90,
     }],
@@ -245,6 +269,7 @@ test('generated workout validation accepts numeric boundaries and fractional kil
     targetDurationMinutes: 10,
     xpReward: 0,
     exercises: [{
+      exerciseId: 'bodyweight_squat',
       name: 'Weighted squat',
       primaryMuscle: 'quads',
       category: 'bodyweight',
@@ -260,6 +285,7 @@ test('generated workout validation accepts numeric boundaries and fractional kil
     targetDurationMinutes: 240,
     xpReward: 5000,
     exercises: [{
+      exerciseId: 'bodyweight_squat',
       name: 'Loaded squat',
       primaryMuscle: 'quads',
       category: 'bodyweight',
@@ -316,25 +342,42 @@ test('generated workout validation rejects decimals for integer fields and inval
 });
 
 test('generated workout validation enforces exercise and muscle-count limits', () => {
+  const allEquipment: TrainingEquipment[] = ['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight', 'pull_up_bar', 'bands'];
   const exercise = generatedWorkout().exercises[0];
+  const elevenUniqueIds = [
+    'bench_press', 'incline_db_press', 'cable_fly', 'overhead_press', 'lateral_raise',
+    'tricep_pushdown', 'barbell_deadlift', 'lat_pulldown', 'barbell_row', 'barbell_curl', 'barbell_squat',
+  ];
   assert.equal(validateGeneratedWorkout(generatedWorkout({
-    exercises: Array(11).fill(exercise),
-  }), ['bodyweight']), null);
+    targetMuscles: ['chest', 'shoulders', 'triceps', 'back', 'biceps', 'quads'],
+    exercises: elevenUniqueIds.map((exerciseId) => ({ ...exercise, exerciseId, setsCount: 1 })),
+  }), allEquipment), null);
 
-  const muscles = ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'quads', 'glutes'];
+  const sevenMuscleExercises = [
+    { exerciseId: 'bench_press', primaryMuscle: 'chest' },
+    { exerciseId: 'barbell_deadlift', primaryMuscle: 'back' },
+    { exerciseId: 'overhead_press', primaryMuscle: 'shoulders' },
+    { exerciseId: 'barbell_curl', primaryMuscle: 'biceps' },
+    { exerciseId: 'tricep_pushdown', primaryMuscle: 'triceps' },
+    { exerciseId: 'barbell_squat', primaryMuscle: 'quads' },
+    { exerciseId: 'glute_bridge', primaryMuscle: 'glutes' },
+  ] as const;
   assert.equal(validateGeneratedWorkout(generatedWorkout({
-    targetMuscles: muscles,
-    exercises: muscles.map((primaryMuscle) => ({ ...exercise, primaryMuscle })),
-  }), ['bodyweight']), null);
+    targetMuscles: sevenMuscleExercises.map((item) => item.primaryMuscle),
+    exercises: sevenMuscleExercises.map((item) => ({ ...exercise, exerciseId: item.exerciseId, setsCount: 1 })),
+  }), allEquipment), null);
 
-  const maximumMuscles = muscles.slice(0, 6);
+  const sixMuscleExercises = sevenMuscleExercises.slice(0, 6);
   assert.ok(validateGeneratedWorkout(generatedWorkout({
-    targetMuscles: maximumMuscles,
-    exercises: maximumMuscles.map((primaryMuscle) => ({ ...exercise, primaryMuscle })),
-  }), ['bodyweight']));
+    targetMuscles: sixMuscleExercises.map((item) => item.primaryMuscle),
+    exercises: sixMuscleExercises.map((item) => ({ ...exercise, exerciseId: item.exerciseId, setsCount: 1 })),
+  }), allEquipment));
+
+  const tenValidIds = elevenUniqueIds.slice(0, 10);
   assert.ok(validateGeneratedWorkout(generatedWorkout({
-    exercises: Array.from({ length: 10 }, (_, index) => ({ ...exercise, name: `Squat ${index}`, setsCount: 1 })),
-  }), ['bodyweight']));
+    targetMuscles: ['chest', 'shoulders', 'triceps', 'back', 'biceps'],
+    exercises: tenValidIds.map((exerciseId) => ({ ...exercise, exerciseId, setsCount: 1 })),
+  }), allEquipment));
 });
 
 test('generated workout validation rejects values beyond numeric upper and lower bounds', () => {
@@ -371,12 +414,14 @@ test('generated workout validation requires declared target muscles to match exe
 });
 
 test('level adaptation is deterministic and caps difficulty and training volume', () => {
+  const fourBodyweightIds = ['bodyweight_squat', 'push_up', 'reverse_lunge', 'glute_bridge'];
   const validated = validateGeneratedWorkout(generatedWorkout({
     difficulty: 'Hardcore',
     targetDurationMinutes: 45,
-    exercises: Array.from({ length: 4 }, (_, index) => ({
+    targetMuscles: ['quads', 'chest', 'glutes'],
+    exercises: fourBodyweightIds.map((exerciseId) => ({
       ...generatedWorkout().exercises[0],
-      name: `Squat variation ${index}`,
+      exerciseId,
       setsCount: 6,
     })),
   }), ['bodyweight']);
@@ -398,4 +443,195 @@ test('fallback validation returns null instead of passing through an invalid rou
     ...generatedWorkout(),
     exercises: [{ ...generatedWorkout().exercises[0], category: 'invalid' }],
   }, ['bodyweight'], 'beginner'), null);
+});
+
+test('Phase 2 contract: accepts valid catalog exerciseId and hydrates authoritative catalog metadata & media', () => {
+  const payload = {
+    title: 'Treino Validado',
+    category: 'Full Body',
+    targetDurationMinutes: 30,
+    difficulty: 'Beginner',
+    targetMuscles: ['quads'],
+    xpReward: 150,
+    coachingNotes: 'Controle o ritmo.',
+    exercises: [{
+      exerciseId: 'bodyweight_squat',
+      name: 'Invented Name That Must Be Overridden',
+      primaryMuscle: 'chest', // mismatched deliberately: must be ignored and overwritten by catalog
+      category: 'barbell', // mismatched deliberately: must be ignored and overwritten by catalog
+      defaultWeight: 0,
+      defaultReps: 12,
+      setsCount: 3,
+      targetRestSeconds: 60,
+    }],
+  };
+
+  const validatedPt = validateGeneratedWorkout(payload, ['bodyweight'], { language: 'pt' });
+  assert.ok(validatedPt);
+  assert.equal(validatedPt.exercises[0].exerciseId, 'bodyweight_squat');
+  assert.equal(validatedPt.exercises[0].name, EXERCISE_DATABASE.bodyweight_squat.namePt);
+  assert.equal(validatedPt.exercises[0].namePt, EXERCISE_DATABASE.bodyweight_squat.namePt);
+  assert.equal(validatedPt.exercises[0].primaryMuscle, 'quads');
+  assert.equal(validatedPt.exercises[0].category, 'bodyweight');
+  assert.deepEqual(validatedPt.exercises[0].media, EXERCISE_DATABASE.bodyweight_squat.media);
+
+  const validatedEn = validateGeneratedWorkout(payload, ['bodyweight'], { language: 'en' });
+  assert.ok(validatedEn);
+  assert.equal(validatedEn.exercises[0].name, EXERCISE_DATABASE.bodyweight_squat.name);
+});
+
+test('Phase 2 contract: rejects free-form exercises without exerciseId and non-existent exerciseIds', () => {
+  const freeForm = generatedWorkout({
+    exercises: [{
+      name: 'Custom Burpee Freestyle',
+      primaryMuscle: 'quads',
+      category: 'bodyweight',
+      defaultWeight: 0,
+      defaultReps: 12,
+      setsCount: 3,
+      targetRestSeconds: 60,
+    }],
+  });
+  assert.equal(validateGeneratedWorkout(freeForm, ['bodyweight']), null);
+
+  const nonExistentId = generatedWorkout({
+    exercises: [{
+      exerciseId: 'non_existent_exercise_xyz',
+      defaultWeight: 0,
+      defaultReps: 12,
+      setsCount: 3,
+      targetRestSeconds: 60,
+    }],
+  });
+  assert.equal(validateGeneratedWorkout(nonExistentId, ['bodyweight']), null);
+});
+
+test('Phase 2 contract: rejects catalog exercises without valid image/media and filters them out of eligible list', () => {
+  const catalogWithoutImage: Record<string, Exercise> = {
+    no_media_squat: {
+      id: 'no_media_squat',
+      name: 'Squat Without Media',
+      namePt: 'Agachamento Sem Mídia',
+      primaryMuscle: 'quads',
+      category: 'bodyweight',
+      defaultSets: 3,
+      defaultReps: 12,
+      defaultWeight: 0,
+      restSeconds: 60,
+    },
+    data_uri_pushup: {
+      id: 'data_uri_pushup',
+      name: 'Embedded Data URI Push-up',
+      namePt: 'Flexão Data URI',
+      primaryMuscle: 'chest',
+      category: 'bodyweight',
+      defaultSets: 3,
+      defaultReps: 10,
+      defaultWeight: 0,
+      restSeconds: 60,
+      media: {
+        imageUrl: 'data:image/png;base64,iVBORw0KGgo=',
+        alt: 'Embedded data uri',
+        mediaType: 'image',
+        assetId: 'bad_asset',
+        version: '1.0.0',
+      },
+    },
+    valid_static_squat: {
+      ...EXERCISE_DATABASE.bodyweight_squat,
+      id: 'valid_static_squat',
+    },
+  };
+
+  assert.equal(hasValidExerciseMedia(catalogWithoutImage.no_media_squat), false);
+  assert.equal(hasValidExerciseMedia(catalogWithoutImage.data_uri_pushup), false);
+  assert.equal(hasValidExerciseMedia(catalogWithoutImage.valid_static_squat), true);
+
+  const eligible = getEligibleCatalogExercises(['bodyweight'], catalogWithoutImage);
+  assert.deepEqual(eligible.map((item) => item.id), ['valid_static_squat']);
+
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    exercises: [{
+      exerciseId: 'no_media_squat',
+      defaultWeight: 0,
+      defaultReps: 10,
+      setsCount: 3,
+      targetRestSeconds: 60,
+    }],
+  }), ['bodyweight'], { catalog: catalogWithoutImage }), null);
+
+  assert.equal(validateGeneratedWorkout(generatedWorkout({
+    targetMuscles: ['chest'],
+    exercises: [{
+      exerciseId: 'data_uri_pushup',
+      defaultWeight: 0,
+      defaultReps: 10,
+      setsCount: 3,
+      targetRestSeconds: 60,
+    }],
+  }), ['bodyweight'], { catalog: catalogWithoutImage }), null);
+});
+
+test('Phase 2 contract: supports static fallback media and optional animation/video URLs', () => {
+  assert.equal(isValidExerciseMedia({
+    imageUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webp',
+    alt: 'Push-up form',
+    mediaType: 'image',
+    assetId: 'exercise_push_up',
+    version: '1.0.0',
+  }), true);
+
+  assert.equal(isValidExerciseMedia({
+    imageUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webp',
+    animationUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.lottie',
+    videoUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.mp4',
+    alt: 'Push-up animation',
+    altPt: 'Animação da flexão',
+    mediaType: 'lottie',
+    assetId: 'exercise_push_up',
+    version: '1.1.0',
+  }), true);
+
+  assert.equal(isValidExerciseMedia({
+    imageUrl: 'https://cdn.fitflow.celisapp.com/exercises/v1/push_up.webp',
+    animationUrl: 'javascript:alert(1)',
+    alt: 'Malformed animation',
+    mediaType: 'lottie',
+    assetId: 'exercise_push_up',
+    version: '1.1.0',
+  }), false);
+});
+
+test('Phase 2 contract: rejects duplicate exerciseIds in the same routine', () => {
+  const duplicateIdsPayload = generatedWorkout({
+    exercises: [
+      {
+        exerciseId: 'bodyweight_squat',
+        defaultWeight: 0,
+        defaultReps: 12,
+        setsCount: 2,
+        targetRestSeconds: 60,
+      },
+      {
+        exerciseId: 'bodyweight_squat',
+        defaultWeight: 0,
+        defaultReps: 10,
+        setsCount: 2,
+        targetRestSeconds: 60,
+      },
+    ],
+  });
+  assert.equal(validateGeneratedWorkout(duplicateIdsPayload, ['bodyweight']), null);
+});
+
+test('Phase 2 compatibility: catalog completeness and legacy routines without media continue working', () => {
+  for (const exercise of Object.values(EXERCISE_DATABASE)) {
+    assert.equal(hasValidExerciseMedia(exercise), true, `${exercise.id} must have valid external media`);
+    assert.ok(exercise.media?.imageUrl.startsWith('https://'), `${exercise.id} media imageUrl must be HTTPS`);
+  }
+
+  // Old persisted routine referencing exercises without media field remains compatible
+  const legacyRoutine = routine('legacy-routine-1', 'Full Body', 'Beginner', 'bodyweight_squat');
+  assert.equal(isRoutineCompatible(legacyRoutine, database, bodyweightBeginner), true);
+  assert.equal(rankCompatibleRoutines([legacyRoutine], database, bodyweightBeginner).length, 1);
 });

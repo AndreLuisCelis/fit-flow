@@ -17,6 +17,7 @@ import {
   setGeminiTimeoutForTesting,
 } from '../server';
 import { validateGeneratedWorkout } from './utils/workoutPersonalization';
+import { EXERCISE_DATABASE } from './data/presetRoutines';
 import { TrainingEquipment } from './types/profile';
 
 function mockResponse(): { statusCode?: number; body?: unknown } {
@@ -69,18 +70,20 @@ function assertValidRoutine(res: { statusCode?: number; body?: unknown }, equipm
   );
 }
 
-test('generateFallbackRoutine nao prescreve cargas absolutas', () => {
+test('generateFallbackRoutine nao prescreve cargas absolutas e usa IDs do catalogo com midia', () => {
   const pull = generateFallbackRoutine('Pull', 45, 'pt');
   const push = generateFallbackRoutine('Push', 45, 'en');
   for (const routine of [pull, push]) {
     assert.ok(routine.exercises.length > 0);
     for (const exercise of routine.exercises) {
       assert.equal(exercise.defaultWeight, 0);
+      assert.ok(EXERCISE_DATABASE[exercise.exerciseId], `${exercise.exerciseId} deve existir no catálogo`);
+      assert.ok(exercise.media?.imageUrl, `${exercise.exerciseId} deve possuir mídia`);
     }
   }
 });
 
-test('generateProfileFallback nao prescreve cargas absolutas em nenhum exercicio', () => {
+test('generateProfileFallback nao prescreve cargas absolutas e emite exercicios do catalogo', () => {
   const routine = generateProfileFallback(
     'Pull', 45, 'pt',
     ['barbell', 'cable', 'dumbbell'],
@@ -94,6 +97,8 @@ test('generateProfileFallback nao prescreve cargas absolutas em nenhum exercicio
   assert.ok(routine.exercises.some((exercise) => exercise.primaryMuscle === 'back'));
   for (const exercise of routine.exercises) {
     assert.equal(exercise.defaultWeight, 0);
+    assert.ok(EXERCISE_DATABASE[exercise.exerciseId], `${exercise.exerciseId} deve existir no catálogo`);
+    assert.ok(exercise.media?.imageUrl, `${exercise.exerciseId} deve possuir mídia`);
   }
 });
 
@@ -268,29 +273,75 @@ test('rotas do Gemini', async (t) => {
     assertValidRoutine(res, ['bodyweight']);
   });
 
-  await t.test('retorna rotina da Gemini sem flag de fallback quando a resposta e valida', async () => {
+  await t.test('retorna rotina da Gemini sem flag de fallback quando a resposta referencia exerciseId valido', async () => {
+    let capturedPrompt = '';
+    const res = await invokeRoute(baseRequestBody, {
+      models: {
+        generateContent: async (args: { contents?: string }) => {
+          capturedPrompt = args?.contents || '';
+          return {
+            text: JSON.stringify({
+              title: 'Gemini Push',
+              category: 'Push',
+              targetDurationMinutes: 45,
+              difficulty: 'Intermediate',
+              targetMuscles: ['chest'],
+              xpReward: 200,
+              coachingNotes: 'Rotina gerada pela Gemini.',
+              exercises: [
+                {
+                  exerciseId: 'push_up',
+                  name: 'Nome divergente ignorado pelo servidor',
+                  defaultWeight: 0,
+                  defaultReps: 10,
+                  setsCount: 3,
+                  targetRestSeconds: 60,
+                  tempo: '2-0-1-0',
+                  notes: 'Mantenha a técnica.',
+                },
+              ],
+            }),
+          };
+        },
+      },
+    });
+    assert.equal(res.statusCode, 200);
+    assert.ok(capturedPrompt.includes('push_up'));
+    assert.ok(!capturedPrompt.includes('bench_press'));
+    const body = res.body as {
+      success?: boolean;
+      isFallback?: boolean;
+      routine?: { exercises: Array<{ exerciseId: string; name: string; media?: { imageUrl: string } }> };
+    };
+    assert.equal(body.success, true);
+    assert.equal(body.isFallback, undefined);
+    assert.ok(body.routine);
+    assert.equal(body.routine.exercises[0].exerciseId, 'push_up');
+    assert.equal(body.routine.exercises[0].name, EXERCISE_DATABASE.push_up.namePt);
+    assert.equal(body.routine.exercises[0].media?.imageUrl, EXERCISE_DATABASE.push_up.media?.imageUrl);
+    assert.ok(validateGeneratedWorkout(body.routine, ['bodyweight']));
+  });
+
+  await t.test('faz fallback quando a Gemini retorna exercicio em texto livre sem exerciseId', async () => {
     const res = await invokeRoute(baseRequestBody, {
       models: {
         generateContent: async () => ({
           text: JSON.stringify({
-            title: 'Gemini Push',
+            title: 'Free Form Routine',
             category: 'Push',
             targetDurationMinutes: 45,
-            difficulty: 'Intermediate',
+            difficulty: 'Beginner',
             targetMuscles: ['chest'],
-            xpReward: 200,
-            coachingNotes: 'Rotina gerada pela Gemini.',
+            xpReward: 150,
             exercises: [
               {
-                name: 'Flexão de Braço',
+                name: 'Exercicio Inventado Sem ID',
                 primaryMuscle: 'chest',
                 category: 'bodyweight',
                 defaultWeight: 0,
-                defaultReps: 10,
+                defaultReps: 12,
                 setsCount: 3,
                 targetRestSeconds: 60,
-                tempo: '2-0-1-0',
-                notes: 'Mantenha a técnica.',
               },
             ],
           }),
@@ -300,9 +351,68 @@ test('rotas do Gemini', async (t) => {
     assert.equal(res.statusCode, 200);
     const body = res.body as { success?: boolean; isFallback?: boolean; routine?: unknown };
     assert.equal(body.success, true);
-    assert.equal(body.isFallback, undefined);
-    assert.ok(body.routine);
-    assert.ok(validateGeneratedWorkout(body.routine, ['bodyweight']));
+    assert.equal(body.isFallback, true);
+    assertValidRoutine(res, ['bodyweight']);
+  });
+
+  await t.test('faz fallback quando a Gemini retorna exerciseId inexistente, duplicado ou de equipamento incompativel', async () => {
+    const invalidPayloads = [
+      {
+        title: 'Unknown ID',
+        category: 'Push',
+        targetDurationMinutes: 45,
+        difficulty: 'Beginner',
+        targetMuscles: ['chest'],
+        xpReward: 150,
+        exercises: [{
+          exerciseId: 'id_inexistente',
+          defaultWeight: 0,
+          defaultReps: 10,
+          setsCount: 3,
+          targetRestSeconds: 60,
+        }],
+      },
+      {
+        title: 'Duplicate IDs',
+        category: 'Push',
+        targetDurationMinutes: 45,
+        difficulty: 'Beginner',
+        targetMuscles: ['chest'],
+        xpReward: 150,
+        exercises: [
+          { exerciseId: 'push_up', defaultWeight: 0, defaultReps: 10, setsCount: 2, targetRestSeconds: 60 },
+          { exerciseId: 'push_up', defaultWeight: 0, defaultReps: 12, setsCount: 2, targetRestSeconds: 60 },
+        ],
+      },
+      {
+        title: 'Incompatible Equipment',
+        category: 'Push',
+        targetDurationMinutes: 45,
+        difficulty: 'Beginner',
+        targetMuscles: ['chest'],
+        xpReward: 150,
+        exercises: [{
+          exerciseId: 'bench_press',
+          defaultWeight: 50,
+          defaultReps: 8,
+          setsCount: 3,
+          targetRestSeconds: 90,
+        }],
+      },
+    ];
+
+    for (const payload of invalidPayloads) {
+      const res = await invokeRoute(baseRequestBody, {
+        models: {
+          generateContent: async () => ({ text: JSON.stringify(payload) }),
+        },
+      });
+      assert.equal(res.statusCode, 200);
+      const body = res.body as { success?: boolean; isFallback?: boolean; routine?: unknown };
+      assert.equal(body.success, true);
+      assert.equal(body.isFallback, true);
+      assertValidRoutine(res, ['bodyweight']);
+    }
   });
 
   await t.test('rejeita requisicao invalida com 400', async () => {
@@ -408,6 +518,7 @@ test('protecao do endpoint Gemini contra abuso', async (t) => {
           xpReward: 100,
           coachingNotes: 'Ok',
           exercises: [{
+            exerciseId: 'push_up',
             name: 'Flexão',
             primaryMuscle: 'chest',
             category: 'bodyweight',

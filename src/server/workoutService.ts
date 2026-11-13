@@ -6,8 +6,10 @@ import { EXERCISE_DATABASE } from '../data/presetRoutines';
 import {
   describeGoals,
   experiencePrompt,
+  getEligibleCatalogExercises,
   getWorkoutSetBudget,
   GeneratedWorkout,
+  hasValidExerciseMedia,
   isEquipmentAvailable,
   validateAndAdaptGeneratedWorkout,
   validateGeneratedWorkout,
@@ -149,6 +151,14 @@ export async function handleGenerateWorkout(
   } = workoutRequest;
 
   try {
+    const eligibleExercises = getEligibleCatalogExercises(allowedEquipment);
+    if (eligibleExercises.length === 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Não há exercícios elegíveis cadastrados para os equipamentos selecionados.',
+      });
+    }
+
     // Lazily initialize client if environment variable was added/updated at runtime
     if (!geminiClient.current && process.env.GEMINI_API_KEY) {
       geminiClient.current = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -158,7 +168,7 @@ export async function handleGenerateWorkout(
       // Fallback if no API key configured in dev
       const routine = generateProfileFallback(focus, durationMinutes, language, allowedEquipment, experienceLevel, profileGoals);
       const validatedFallback = routine
-        ? validateAndAdaptGeneratedWorkout(routine, allowedEquipment, experienceLevel)
+        ? validateAndAdaptGeneratedWorkout(routine, allowedEquipment, experienceLevel, { language })
         : null;
       if (!validatedFallback) {
         return res.status(422).json({ success: false, message: 'Não há exercícios cadastrados para os equipamentos selecionados.' });
@@ -190,6 +200,15 @@ export async function handleGenerateWorkout(
           ? frequentExercises.join(', ')
         : 'No exercise history available';
 
+      const catalogPromptLines = eligibleExercises
+        .map((exercise) => {
+          const reqPart = exercise.equipmentRequired?.length
+            ? ` | required: ${exercise.equipmentRequired.join(',')}`
+            : '';
+          return `- ${exercise.id} | ${exercise.name} (${exercise.namePt}) | muscle: ${exercise.primaryMuscle} | category: ${exercise.category}${reqPart} | defaultSets: ${exercise.defaultSets} | defaultReps: ${exercise.defaultReps} | rest: ${exercise.restSeconds}s`;
+        })
+        .join('\n');
+
       const prompt = `
 You are the elite conditioning coach behind FitFlow PWA.
 Create an athletic workout routine with progressive overload metrics in ${langName}.
@@ -205,38 +224,37 @@ User Parameters & Historical Telemetry:
 - Athlete's Most Frequent Exercises from IndexedDB History: ${freqExercisesText}
 - Request Variation Seed: ${Date.now()}-${Math.random().toString(36).slice(2)}
 
+Eligible Catalog Exercises (you MUST select ONLY from these exact exerciseId values; NEVER invent free-form exercise names or IDs):
+${catalogPromptLines}
+
 Coaching Directives:
-1. Prioritize and intelligently incorporate the athlete's most frequent exercises (or progressive overload variations of them) that strictly match the available equipment.
-2. Only select exercises that can be performed using the specified available equipment.
-  For bodyweight movements that require apparatus (for example, hanging leg raises), declare that apparatus in equipmentRequired.
-3. Include specific tempo (e.g. 3-0-1-0), realistic default starting weights in kg, target rep ranges, and rest intervals.
-5. Use the request variation seed to ensure this routine is not identical to previous generations; vary exercise order, rep ranges, loads and rest periods while staying within equipment constraints.
+1. Select ONLY exercises whose exact exerciseId appears in "Eligible Catalog Exercises" above. Do NOT invent new exercises, do NOT repeat the same exerciseId twice in a routine, and do NOT select exercises outside the eligible list.
+2. Prioritize and intelligently incorporate the athlete's most frequent exercises (or compatible progressions from the eligible catalog) matching their focus and goals.
+3. Prescribe realistic defaultWeight in kg (0 for bodyweight/bands), defaultReps, setsCount, targetRestSeconds, and optional tempo/notes tailored to the athlete's experience and fatigue level.
+4. Use the request variation seed to vary exercise selection, order, rep ranges, loads, and rest periods while strictly respecting the catalog and duration constraints.
 
 Respond ONLY with valid JSON (no markdown formatting, no code block backticks) adhering strictly to this schema:
 {
   "title": "string (Creative athletic title)",
-  "category": "Push" | "Pull" | "Legs" | "Upper" | "Lower" | "Full Body",
+  "category": "Push" | "Pull" | "Legs" | "Upper" | "Lower" | "Full Body" | "Cardio & Core",
   "targetDurationMinutes": number,
   "difficulty": "Beginner" | "Intermediate" | "Advanced" | "Hardcore",
   "targetMuscles": ["chest" | "back" | "shoulders" | "biceps" | "triceps" | "quads" | "hamstrings" | "calves" | "core" | "glutes"],
   "xpReward": integer from 0 to 5000 (e.g. 380),
-  "coachingNotes": "string (1-2 motivational tactical sentences tailored to their frequent exercises)",
+  "coachingNotes": "string (1 concise motivational tactical sentence)",
   "exercises": [
     {
-      "name": "string (Exercise name)",
-      "primaryMuscle": "chest" | "back" | "shoulders" | "biceps" | "triceps" | "quads" | "hamstrings" | "calves" | "core" | "glutes",
-      "category": "barbell" | "dumbbell" | "cable" | "machine" | "bodyweight" | "bands",
-      "equipmentRequired": ["pull_up_bar"] (optional; list additional required equipment),
-      "defaultWeight": number (in kg, realistic default like 60, 80, 20),
-      "defaultReps": number (e.g. 8, 10, 12),
-      "setsCount": number (e.g. 3 or 4),
-      "targetRestSeconds": number (e.g. 60, 75, 90),
-      "tempo": "string (e.g. 3-0-1-0)",
-      "notes": "string (form cue)"
+      "exerciseId": "string (EXACT exerciseId from Eligible Catalog Exercises above, unique within this array)",
+      "defaultWeight": number (in kg, from 0 to 500),
+      "defaultReps": integer (from 1 to 30),
+      "setsCount": integer (from 1 to 12),
+      "targetRestSeconds": integer (from 0 to 600),
+      "tempo": "string (optional, e.g. 3-0-1-0)",
+      "notes": "string (optional concise form cue)"
     }
   ]
 }
-Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 unique target muscles, exactly matching the primaryMuscle values used by the exercises. Include 4–5 focused exercises (do not exceed 5). Keep coachingNotes to 1 concise sentence. defaultWeight must be from 0 to 500 kg; defaultReps an integer from 1 to 30; setsCount an integer from 1 to 12; targetRestSeconds an integer from 0 to 600. Total sets must not exceed two thirds of targetDurationMinutes (rounded down). Use only declared fields; do not add fields.
+Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 unique targetMuscles, matching the exact primaryMuscle values of the selected catalog exercises. Include 1–5 unique eligible exercises (never duplicate an exerciseId; if fewer than 4 eligible exercises exist, use up to the available count). Keep coachingNotes to 1 concise sentence. defaultWeight must be from 0 to 500 kg; defaultReps an integer from 1 to 30; setsCount an integer from 1 to 12; targetRestSeconds an integer from 0 to 600. Total sets must not exceed two thirds of targetDurationMinutes (rounded down). Use only declared fields; do not add fields.
 `;
 
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -274,9 +292,9 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
       const text = response.text || '';
       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsedData = JSON.parse(cleanJson);
-      const personalizedRoutine = validateAndAdaptGeneratedWorkout(parsedData, allowedEquipment, experienceLevel);
+      const personalizedRoutine = validateAndAdaptGeneratedWorkout(parsedData, allowedEquipment, experienceLevel, { language });
       if (!personalizedRoutine) {
-        throw new Error('Gemini returned an invalid or equipment-incompatible workout');
+        throw new Error('Gemini returned an invalid, non-catalog, or equipment-incompatible workout');
       }
 
       return res.status(200).json({
@@ -303,7 +321,7 @@ Constraints: targetDurationMinutes is an integer from 10 to 240. Include 1–6 u
         profileGoals,
       );
       const validatedFallback = fallback
-        ? validateAndAdaptGeneratedWorkout(fallback, allowedEquipment, experienceLevel)
+        ? validateAndAdaptGeneratedWorkout(fallback, allowedEquipment, experienceLevel, { language })
         : null;
       if (!validatedFallback) {
         return res.status(422).json({ success: false, message: 'Não há exercícios cadastrados para os equipamentos selecionados.' });
@@ -359,12 +377,19 @@ export function generateProfileFallback(
   let exercises: any[] = [];
   if (!prefersFullBody) {
     const compatible = Object.values(EXERCISE_DATABASE)
-      .filter((exercise: Exercise) => isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired) && targetFocusMuscles.includes(exercise.primaryMuscle))
+      .filter((exercise: Exercise) =>
+        hasValidExerciseMedia(exercise) &&
+        isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired) &&
+        targetFocusMuscles.includes(exercise.primaryMuscle),
+      )
       .sort((left, right) => left.id.localeCompare(right.id));
     const count = Math.min(compatible.length, 5);
     exercises = compatible.slice(0, count).map((exercise: Exercise) => ({
+      exerciseId: exercise.id,
       name: isPt ? exercise.namePt : exercise.name,
+      ...(exercise.namePt ? { namePt: exercise.namePt } : {}),
       primaryMuscle: exercise.primaryMuscle,
+      ...(exercise.secondaryMuscles?.length ? { secondaryMuscles: exercise.secondaryMuscles } : {}),
       category: exercise.category,
       ...(exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {}),
       // Fallback sem avaliação individual: não prescreve carga. O usuário ajusta pela técnica e pelo esforço percebido (RPE).
@@ -375,6 +400,7 @@ export function generateProfileFallback(
       tempo: exercise.tempo || '',
       notes: exercise.notes || '',
       ...(exercise.notesPt ? { notesPt: exercise.notesPt } : {}),
+      ...(exercise.media ? { media: exercise.media } : {}),
     }));
   }
 
@@ -385,12 +411,18 @@ export function generateProfileFallback(
 
   if (prefersFullBody || needsExerciseCatalogFallback) {
     const compatible = Object.values(EXERCISE_DATABASE)
-      .filter((exercise: Exercise) => isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired))
+      .filter((exercise: Exercise) =>
+        hasValidExerciseMedia(exercise) &&
+        isEquipmentAvailable(exercise.category, equipment, exercise.equipmentRequired),
+      )
       .sort((left, right) => left.id.localeCompare(right.id))
       .slice(0, 5);
     exercises = compatible.map((exercise: Exercise) => ({
+      exerciseId: exercise.id,
       name: isPt ? exercise.namePt : exercise.name,
+      ...(exercise.namePt ? { namePt: exercise.namePt } : {}),
       primaryMuscle: exercise.primaryMuscle,
+      ...(exercise.secondaryMuscles?.length ? { secondaryMuscles: exercise.secondaryMuscles } : {}),
       category: exercise.category,
       ...(exercise.equipmentRequired ? { equipmentRequired: exercise.equipmentRequired } : {}),
       // Fallback sem avaliação individual: não prescreve carga. O usuário ajusta pela técnica e pelo esforço percebido (RPE).
@@ -401,6 +433,7 @@ export function generateProfileFallback(
       tempo: exercise.tempo || '',
       notes: exercise.notes || '',
       ...(exercise.notesPt ? { notesPt: exercise.notesPt } : {}),
+      ...(exercise.media ? { media: exercise.media } : {}),
     }));
   } else if (experience === 'beginner') {
     exercises = exercises.map(exercise => ({ ...exercise, setsCount: Math.min(3, exercise.setsCount) }));
@@ -433,7 +466,28 @@ export function generateProfileFallback(
       : `Routine adapted for your goals (${describeGoals(goals)}) and ${experiencePrompt[experience]} experience level. No load prescribed: start with no weight or a light load, adjust by technique and perceived exertion (RPE). Reduce the load or stop the exercise if you feel pain, dizziness, shortness of breath, or abnormal symptoms.`,
   };
 
-  return validateGeneratedWorkout(candidate, equipment);
+  return validateGeneratedWorkout(candidate, equipment, { language });
+}
+
+function buildFallbackExerciseEntry(exerciseId: string, isPt: boolean) {
+  const ex = EXERCISE_DATABASE[exerciseId];
+  return {
+    exerciseId: ex.id,
+    name: isPt ? ex.namePt : ex.name,
+    ...(ex.namePt ? { namePt: ex.namePt } : {}),
+    primaryMuscle: ex.primaryMuscle,
+    ...(ex.secondaryMuscles?.length ? { secondaryMuscles: ex.secondaryMuscles } : {}),
+    category: ex.category,
+    ...(ex.equipmentRequired ? { equipmentRequired: ex.equipmentRequired } : {}),
+    defaultWeight: 0,
+    defaultReps: ex.defaultReps,
+    setsCount: ex.defaultSets,
+    targetRestSeconds: ex.restSeconds,
+    ...(ex.tempo ? { tempo: ex.tempo } : {}),
+    ...(ex.notes ? { notes: ex.notes } : {}),
+    ...(ex.notesPt ? { notesPt: ex.notesPt } : {}),
+    ...(ex.media ? { media: ex.media } : {}),
+  };
 }
 
 // Helper for deterministic high quality fallback
@@ -451,56 +505,16 @@ export function generateFallbackRoutine(
       category: 'Pull',
       targetDurationMinutes: duration,
       difficulty: 'Advanced',
-      targetMuscles: ['back', 'biceps', 'hamstrings'],
+      targetMuscles: ['back', 'biceps'],
       xpReward: 380,
       coachingNotes: isPt
         ? 'Foque em puxar com os cotovelos e sustentar 1s no pico de contração.'
         : 'Drive with your elbows and pause for 1s at peak contraction.',
       exercises: [
-        {
-          name: isPt ? 'Levantamento Terra Convencional' : 'Conventional Deadlift',
-          primaryMuscle: 'back',
-          category: 'barbell',
-          defaultWeight: 0,
-          defaultReps: 5,
-          setsCount: 4,
-          targetRestSeconds: 90,
-          tempo: '2-1-1-0',
-          notes: isPt ? 'Trave o abdômen e exploda na subida.' : 'Brace core and explode through hips.',
-        },
-        {
-          name: isPt ? 'Puxada Alta na Polia' : 'Lat Pulldown',
-          primaryMuscle: 'back',
-          category: 'cable',
-          defaultWeight: 0,
-          defaultReps: 10,
-          setsCount: 4,
-          targetRestSeconds: 75,
-          tempo: '2-0-1-1',
-          notes: isPt ? 'Puxe a barra até a clavícula.' : 'Pull bar to clavicle.',
-        },
-        {
-          name: isPt ? 'Remada Curvada com Barra' : 'Bent-Over Barbell Row',
-          primaryMuscle: 'back',
-          category: 'barbell',
-          defaultWeight: 0,
-          defaultReps: 8,
-          setsCount: 3,
-          targetRestSeconds: 75,
-          tempo: '2-0-1-0',
-          notes: isPt ? 'Tronco fixo em 45 graus.' : 'Lock torso at 45 degrees.',
-        },
-        {
-          name: isPt ? 'Rosca Direta com Barra W' : 'EZ-Bar Bicep Curl',
-          primaryMuscle: 'biceps',
-          category: 'barbell',
-          defaultWeight: 0,
-          defaultReps: 10,
-          setsCount: 3,
-          targetRestSeconds: 60,
-          tempo: '2-0-1-1',
-          notes: isPt ? 'Cotovelos firmes ao lado do tronco.' : 'Keep elbows pinned to sides.',
-        },
+        buildFallbackExerciseEntry('barbell_deadlift', isPt),
+        buildFallbackExerciseEntry('lat_pulldown', isPt),
+        buildFallbackExerciseEntry('barbell_row', isPt),
+        buildFallbackExerciseEntry('barbell_curl', isPt),
       ],
     };
   }
@@ -516,50 +530,10 @@ export function generateFallbackRoutine(
       ? 'Controle a fase excêntrica da descida para gerar o máximo de estímulo hipertrófico.'
       : 'Control the eccentric descent to maximize mechanical hypertrophy tension.',
     exercises: [
-      {
-        name: isPt ? 'Supino Reto com Barra' : 'Barbell Bench Press',
-        primaryMuscle: 'chest',
-        category: 'barbell',
-        defaultWeight: 0,
-        defaultReps: 8,
-        setsCount: 4,
-        targetRestSeconds: 90,
-        tempo: '3-0-1-0',
-        notes: isPt ? 'Escápulas aduzidas e pés cravados no chão.' : 'Retract scapula and drive feet into ground.',
-      },
-      {
-        name: isPt ? 'Supino Inclinado com Halteres' : 'Incline Dumbbell Press',
-        primaryMuscle: 'chest',
-        category: 'dumbbell',
-        defaultWeight: 0,
-        defaultReps: 10,
-        setsCount: 3,
-        targetRestSeconds: 75,
-        tempo: '2-1-1-0',
-        notes: isPt ? 'Banco a 30 graus, alongamento completo na base.' : '30-degree incline, deep stretch at bottom.',
-      },
-      {
-        name: isPt ? 'Desenvolvimento com Halteres' : 'Dumbbell Shoulder Press',
-        primaryMuscle: 'shoulders',
-        category: 'dumbbell',
-        defaultWeight: 0,
-        defaultReps: 10,
-        setsCount: 3,
-        targetRestSeconds: 75,
-        tempo: '2-0-1-0',
-        notes: isPt ? 'Trave o core ao empurrar verticalmente.' : 'Lock core while pressing overhead.',
-      },
-      {
-        name: isPt ? 'Tríceps Corda no Cross' : 'Cable Triceps Pushdown',
-        primaryMuscle: 'triceps',
-        category: 'cable',
-        defaultWeight: 0,
-        defaultReps: 12,
-        setsCount: 3,
-        targetRestSeconds: 60,
-        tempo: '2-0-1-1',
-        notes: isPt ? 'Abra a corda no final da extensão.' : 'Flare rope at full extension.',
-      },
+      buildFallbackExerciseEntry('bench_press', isPt),
+      buildFallbackExerciseEntry('incline_db_press', isPt),
+      buildFallbackExerciseEntry('lateral_raise', isPt),
+      buildFallbackExerciseEntry('tricep_pushdown', isPt),
     ],
   };
 }

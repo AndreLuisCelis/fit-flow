@@ -1,4 +1,5 @@
-import { Exercise, WorkoutRoutine } from '../types/workout';
+import { Exercise, ExerciseMedia, ExerciseMediaType, WorkoutRoutine } from '../types/workout';
+import { EXERCISE_DATABASE } from '../data/presetRoutines';
 import {
   EXPERIENCE_LEVELS,
   PROFILE_GOALS,
@@ -53,8 +54,11 @@ export const experiencePrompt: Record<UserProfile['experience'], string> = {
 };
 
 export interface GeneratedWorkoutExercise {
+  exerciseId: string;
   name: string;
+  namePt?: string;
   primaryMuscle: Exercise['primaryMuscle'];
+  secondaryMuscles?: Exercise['secondaryMuscles'];
   category: Exercise['category'];
   defaultWeight: number;
   defaultReps: number;
@@ -64,6 +68,7 @@ export interface GeneratedWorkoutExercise {
   tempo?: string;
   notes?: string;
   notesPt?: string;
+  media?: ExerciseMedia;
 }
 
 export interface GeneratedWorkout {
@@ -75,6 +80,11 @@ export interface GeneratedWorkout {
   xpReward: number;
   coachingNotes?: string;
   exercises: GeneratedWorkoutExercise[];
+}
+
+export interface ValidateGeneratedWorkoutOptions {
+  catalog?: Record<string, Exercise>;
+  language?: 'pt' | 'en';
 }
 
 export interface ValidatedWorkoutRequest {
@@ -98,10 +108,27 @@ const routineDifficulties: WorkoutRoutine['difficulty'][] = ['Beginner', 'Interm
 const maximumTargetMuscles = 6;
 const maximumExercises = 10;
 const exerciseCategories: Exercise['category'][] = ['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight', 'bands'];
+const exerciseMediaTypes: ExerciseMediaType[] = ['image', 'gif', 'lottie', 'webp', 'mp4', 'webm', 'svg'];
 const requestFatigueLevels = ['fresh', 'normal', 'fatigued'] as const;
 const requestGoals = ['hypertrophy', 'strength', 'endurance', 'deload'] as const;
 const allowedRoutineFields = ['title', 'category', 'targetDurationMinutes', 'difficulty', 'targetMuscles', 'xpReward', 'coachingNotes', 'exercises'];
-const allowedExerciseFields = ['name', 'primaryMuscle', 'category', 'equipmentRequired', 'defaultWeight', 'defaultReps', 'setsCount', 'targetRestSeconds', 'tempo', 'notes', 'notesPt'];
+const allowedExerciseFields = [
+  'exerciseId',
+  'name',
+  'namePt',
+  'primaryMuscle',
+  'secondaryMuscles',
+  'category',
+  'equipmentRequired',
+  'defaultWeight',
+  'defaultReps',
+  'setsCount',
+  'targetRestSeconds',
+  'tempo',
+  'notes',
+  'notesPt',
+  'media',
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -115,6 +142,48 @@ function isEquipmentList(value: unknown): value is TrainingEquipment[] {
   return Array.isArray(value) &&
     value.length > 0 &&
     value.every((item) => typeof item === 'string' && TRAINING_EQUIPMENT.includes(item as TrainingEquipment));
+}
+
+export function isValidExternalMediaUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 500) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+export function isValidExerciseMedia(media: unknown): media is ExerciseMedia {
+  if (!isRecord(media)) return false;
+  if (!isValidExternalMediaUrl(media.imageUrl)) return false;
+  if (typeof media.alt !== 'string' || media.alt.trim().length === 0 || media.alt.length > 300) return false;
+  if (media.altPt !== undefined && (typeof media.altPt !== 'string' || media.altPt.trim().length === 0 || media.altPt.length > 300)) return false;
+  if (media.animationUrl !== undefined && !isValidExternalMediaUrl(media.animationUrl)) return false;
+  if (media.videoUrl !== undefined && !isValidExternalMediaUrl(media.videoUrl)) return false;
+  if (typeof media.mediaType !== 'string' || !exerciseMediaTypes.includes(media.mediaType as ExerciseMediaType)) return false;
+  if (typeof media.assetId !== 'string' || media.assetId.trim().length === 0 || media.assetId.length > 120) return false;
+  if (typeof media.version !== 'string' || media.version.trim().length === 0 || media.version.length > 40) return false;
+  return true;
+}
+
+export function hasValidExerciseMedia(exercise: Exercise | undefined | null): boolean {
+  return Boolean(exercise && isValidExerciseMedia(exercise.media));
+}
+
+export function getEligibleCatalogExercises(
+  availableEquipment: TrainingEquipment[],
+  catalog: Record<string, Exercise> = EXERCISE_DATABASE,
+): Exercise[] {
+  if (!isEquipmentList(availableEquipment)) return [];
+  return Object.values(catalog)
+    .filter((exercise) =>
+      hasValidExerciseMedia(exercise) &&
+      isEquipmentAvailable(exercise.category, availableEquipment, exercise.equipmentRequired),
+    )
+    .sort((left, right) => left.id.localeCompare(right.id));
 }
 
 export function validateWorkoutRequest(value: unknown): ValidatedWorkoutRequest | null {
@@ -178,7 +247,11 @@ export function validateWorkoutRequest(value: unknown): ValidatedWorkoutRequest 
 export function validateGeneratedWorkout(
   value: unknown,
   availableEquipment: TrainingEquipment[],
+  options: ValidateGeneratedWorkoutOptions = {},
 ): GeneratedWorkout | null {
+  const catalog = options.catalog ?? EXERCISE_DATABASE;
+  const language = options.language ?? 'pt';
+
   if (!isRecord(value) || !hasOnlyFields(value, allowedRoutineFields) || !isEquipmentList(availableEquipment)) return null;
   const candidate = value;
   if (
@@ -194,22 +267,71 @@ export function validateGeneratedWorkout(
     (candidate.coachingNotes !== undefined && (typeof candidate.coachingNotes !== 'string' || candidate.coachingNotes.length > 500))
   ) return null;
 
+  const seenExerciseIds = new Set<string>();
   const exercises: GeneratedWorkoutExercise[] = [];
+
   for (const rawExercise of candidate.exercises) {
     if (!isRecord(rawExercise) || !hasOnlyFields(rawExercise, allowedExerciseFields)) return null;
     const exercise = rawExercise;
-    const category = exercise.category as Exercise['category'];
-    const primaryMuscle = exercise.primaryMuscle as Exercise['primaryMuscle'];
-    const equipmentRequired = exercise.equipmentRequired === undefined ? [] : exercise.equipmentRequired;
+
+    // Contrato baseado em ID: exercício deve referenciar um ID válido existente no catálogo
+    if (typeof exercise.exerciseId !== 'string' || exercise.exerciseId.trim().length === 0 || exercise.exerciseId.length > 100) {
+      return null;
+    }
+    const exerciseId = exercise.exerciseId.trim();
+    if (seenExerciseIds.has(exerciseId)) {
+      return null;
+    }
+    seenExerciseIds.add(exerciseId);
+
+    const catalogExercise = catalog[exerciseId];
+    if (!catalogExercise) {
+      return null;
+    }
+
+    // Exercício deve possuir imagem/mídia válida para elegibilidade pela IA
+    if (!hasValidExerciseMedia(catalogExercise)) {
+      return null;
+    }
+
+    // Compatibilidade de equipamento verificada exclusivamente contra os metadados autoritativos do catálogo
+    if (!isEquipmentAvailable(catalogExercise.category, availableEquipment, catalogExercise.equipmentRequired)) {
+      return null;
+    }
+
+    // Validação estrutural de campos opcionais caso presentes no payload (sem confiar neles como fonte de verdade)
+    if (exercise.category !== undefined && !exerciseCategories.includes(exercise.category as Exercise['category'])) {
+      return null;
+    }
+    if (exercise.primaryMuscle !== undefined && !muscleGroups.includes(exercise.primaryMuscle as Exercise['primaryMuscle'])) {
+      return null;
+    }
+    if (
+      exercise.secondaryMuscles !== undefined &&
+      (!Array.isArray(exercise.secondaryMuscles) ||
+        !exercise.secondaryMuscles.every((m) => typeof m === 'string' && muscleGroups.includes(m as Exercise['primaryMuscle'])))
+    ) {
+      return null;
+    }
+    if (
+      exercise.equipmentRequired !== undefined &&
+      (!Array.isArray(exercise.equipmentRequired) ||
+        !exercise.equipmentRequired.every((item) => typeof item === 'string' && TRAINING_EQUIPMENT.includes(item as TrainingEquipment)))
+    ) {
+      return null;
+    }
+    if (exercise.name !== undefined && (typeof exercise.name !== 'string' || exercise.name.trim().length === 0 || exercise.name.length > 100)) {
+      return null;
+    }
+    if (exercise.namePt !== undefined && (typeof exercise.namePt !== 'string' || exercise.namePt.trim().length === 0 || exercise.namePt.length > 100)) {
+      return null;
+    }
+    if (exercise.media !== undefined && !isValidExerciseMedia(exercise.media)) {
+      return null;
+    }
+
     const optionalTextFields = ['tempo', 'notes', 'notesPt'] as const;
     if (
-      !exerciseCategories.includes(category) ||
-      !Array.isArray(equipmentRequired) ||
-      !equipmentRequired.every((item) => typeof item === 'string' && TRAINING_EQUIPMENT.includes(item as TrainingEquipment)) ||
-      !isEquipmentAvailable(category, availableEquipment, equipmentRequired) ||
-      !muscleGroups.includes(primaryMuscle) ||
-      typeof exercise.name !== 'string' || exercise.name.trim().length === 0 ||
-      exercise.name.length > 100 ||
       typeof exercise.defaultWeight !== 'number' || !Number.isFinite(exercise.defaultWeight) || exercise.defaultWeight < 0 || exercise.defaultWeight > 500 ||
       typeof exercise.defaultReps !== 'number' || !Number.isInteger(exercise.defaultReps) || exercise.defaultReps < 1 || exercise.defaultReps > 30 ||
       typeof exercise.setsCount !== 'number' || !Number.isInteger(exercise.setsCount) || exercise.setsCount < 1 || exercise.setsCount > 12 ||
@@ -220,18 +342,36 @@ export function validateGeneratedWorkout(
       (typeof exercise[field] !== 'string' || exercise[field].length > (field === 'tempo' ? 30 : 300)),
     )) return null;
 
+    // Recupera nome, categoria, músculos e mídia exclusivamente do catálogo (fonte única de verdade)
+    const authoritativeName = language === 'pt'
+      ? (catalogExercise.namePt || catalogExercise.name)
+      : catalogExercise.name;
+    const resolvedNotes = typeof exercise.notes === 'string' && exercise.notes.trim().length > 0
+      ? exercise.notes.trim()
+      : (language === 'pt' ? (catalogExercise.notesPt || catalogExercise.notes) : catalogExercise.notes);
+    const resolvedNotesPt = typeof exercise.notesPt === 'string' && exercise.notesPt.trim().length > 0
+      ? exercise.notesPt.trim()
+      : catalogExercise.notesPt;
+    const resolvedTempo = typeof exercise.tempo === 'string' && exercise.tempo.trim().length > 0
+      ? exercise.tempo.trim()
+      : catalogExercise.tempo;
+
     exercises.push({
-      name: exercise.name.trim(),
-      primaryMuscle,
-      category,
+      exerciseId: catalogExercise.id,
+      name: authoritativeName,
+      ...(catalogExercise.namePt ? { namePt: catalogExercise.namePt } : {}),
+      primaryMuscle: catalogExercise.primaryMuscle,
+      ...(catalogExercise.secondaryMuscles?.length ? { secondaryMuscles: [...catalogExercise.secondaryMuscles] } : {}),
+      category: catalogExercise.category,
       defaultWeight: exercise.defaultWeight,
       defaultReps: exercise.defaultReps,
       setsCount: exercise.setsCount,
       targetRestSeconds: exercise.targetRestSeconds,
-      ...(equipmentRequired.length ? { equipmentRequired } : {}),
-      ...(typeof exercise.tempo === 'string' ? { tempo: exercise.tempo } : {}),
-      ...(typeof exercise.notes === 'string' ? { notes: exercise.notes } : {}),
-      ...(typeof exercise.notesPt === 'string' ? { notesPt: exercise.notesPt } : {}),
+      ...(catalogExercise.equipmentRequired?.length ? { equipmentRequired: [...catalogExercise.equipmentRequired] } : {}),
+      ...(resolvedTempo ? { tempo: resolvedTempo } : {}),
+      ...(resolvedNotes ? { notes: resolvedNotes } : {}),
+      ...(resolvedNotesPt ? { notesPt: resolvedNotesPt } : {}),
+      ...(catalogExercise.media ? { media: { ...catalogExercise.media } } : {}),
     });
   }
 
@@ -296,11 +436,12 @@ export function validateAndAdaptGeneratedWorkout(
   value: unknown,
   availableEquipment: TrainingEquipment[],
   experience: UserProfile['experience'],
+  options: ValidateGeneratedWorkoutOptions = {},
 ): GeneratedWorkout | null {
-  const validated = validateGeneratedWorkout(value, availableEquipment);
+  const validated = validateGeneratedWorkout(value, availableEquipment, options);
   if (!validated) return null;
   const adapted = adaptGeneratedWorkout(validated, experience);
-  return validateGeneratedWorkout(adapted, availableEquipment);
+  return validateGeneratedWorkout(adapted, availableEquipment, options);
 }
 
 export function isEquipmentAvailable(

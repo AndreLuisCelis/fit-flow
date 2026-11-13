@@ -1,8 +1,28 @@
-import { Exercise, WorkoutRoutine, MasteryBadge, UserStats } from '../types/workout';
+import { Exercise, ExerciseMedia, WorkoutRoutine, MasteryBadge, UserStats } from '../types/workout';
 
 export interface ExerciseGuide {
   description: string;
   descriptionPt: string;
+}
+
+export const EXERCISE_MEDIA_CDN_BASE = 'https://cdn.fitflow.celisapp.com/exercises/v1';
+export const EXERCISE_MEDIA_VERSION = '1.0.0';
+
+function createExerciseMedia(
+  id: string,
+  alt: string,
+  altPt: string,
+  overrides: Partial<ExerciseMedia> = {},
+): ExerciseMedia {
+  return {
+    imageUrl: `${EXERCISE_MEDIA_CDN_BASE}/${id}.webp`,
+    alt,
+    altPt,
+    mediaType: 'image',
+    assetId: `exercise_${id}`,
+    version: EXERCISE_MEDIA_VERSION,
+    ...overrides,
+  };
 }
 
 export const EXERCISE_GUIDE: Record<string, ExerciseGuide> = {
@@ -116,6 +136,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Mantenha as escápulas retraídas e firme os pés no chão.',
     tempo: '3-0-1-0',
     guide: EXERCISE_GUIDE.bench_press,
+    media: createExerciseMedia(
+      'bench_press',
+      'Barbell bench press starting and pressing position on flat bench',
+      'Posição inicial e execução do supino reto com barra no banco plano',
+    ),
   },
   incline_db_press: {
     id: 'incline_db_press',
@@ -132,6 +157,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Deixe o banco a 30 graus e alongue bem o peitoral na parte baixa do movimento.',
     tempo: '2-1-1-0',
     guide: EXERCISE_GUIDE.incline_db_press,
+    media: createExerciseMedia(
+      'incline_db_press',
+      'Incline dumbbell press performed on a 30 degree bench',
+      'Supino inclinado com halteres executado em banco a 30 graus',
+    ),
   },
   cable_fly: {
     id: 'cable_fly',
@@ -148,6 +178,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Contraia o peitoral por 1 segundo no ponto de maior contração.',
     tempo: '2-0-1-1',
     guide: EXERCISE_GUIDE.cable_fly,
+    media: createExerciseMedia(
+      'cable_fly',
+      'Standing cable chest fly with handles brought together at chest height',
+      'Crucifixo no crossover em pé aproximando os pegadores na altura do peitoral',
+    ),
   },
   overhead_press: {
     id: 'overhead_press',
@@ -164,6 +199,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Contraia os glúteos e o abdômen; empurre a barra para cima em uma trajetória firme.',
     tempo: '2-0-1-0',
     guide: EXERCISE_GUIDE.overhead_press,
+    media: createExerciseMedia(
+      'overhead_press',
+      'Standing barbell overhead press pressing barbell vertically',
+      'Desenvolvimento militar em pé empurrando a barra verticalmente',
+    ),
   },
   lateral_raise: {
     id: 'lateral_raise',
@@ -180,6 +220,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Incline levemente o tronco e conduza o movimento com os cotovelos até a altura dos ombros.',
     tempo: '2-0-1-0',
     guide: EXERCISE_GUIDE.lateral_raise,
+    media: createExerciseMedia(
+      'lateral_raise',
+      'Standing dumbbell lateral raise raising arms to shoulder height',
+      'Elevação lateral com halteres elevando os braços até a altura dos ombros',
+    ),
   },
   tricep_pushdown: {
     id: 'tricep_pushdown',
@@ -196,6 +241,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Afaste as pontas da corda ao estender os braços para contrair a parte lateral do tríceps.',
     tempo: '2-0-1-1',
     guide: EXERCISE_GUIDE.tricep_pushdown,
+    media: createExerciseMedia(
+      'tricep_pushdown',
+      'Cable triceps rope pushdown with elbows pinned to torso',
+      'Tríceps corda na polia mantendo os cotovelos firmes junto ao tronco',
+    ),
   },
   barbell_deadlift: {
     id: 'barbell_deadlift',
@@ -212,6 +262,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Retire a folga da barra, firme o abdômen e estenda o quadril com força.',
     tempo: '2-1-1-0',
     guide: EXERCISE_GUIDE.barbell_deadlift,
+    media: createExerciseMedia(
+      'barbell_deadlift',
+      'Conventional barbell deadlift setup and hip hinge lockout',
+      'Levantamento terra convencional com barra rente às canelas',
+    ),
   },
   lat_pulldown: {
     id: 'lat_pulldown',
@@ -228,6 +283,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Abaixe as escápulas primeiro e puxe a barra em direção à parte superior do peito.',
     tempo: '2-1-1-0',
     guide: EXERCISE_GUIDE.lat_pulldown,
+    media: createExerciseMedia(
+      'lat_pulldown',
+      'Wide grip lat pulldown pulling cable bar to upper chest',
+      'Puxada aberta na polia trazendo a barra em direção ao peitoral superior',
+    ),
   },
   barbell_row: {
     id: 'barbell_row',
@@ -244,6 +304,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Mantenha o tronco estável a 45 graus e puxe a barra em direção às costelas inferiores.',
     tempo: '2-0-1-1',
     guide: EXERCISE_GUIDE.barbell_row,
+    media: createExerciseMedia(
+      'barbell_row',
+      'Bent-over barbell row with torso hinged at 45 degrees',
+      'Remada curvada com barra com tronco inclinado a 45 graus',
+    ),
   },
   barbell_curl: {
     id: 'barbell_curl',
@@ -260,6 +325,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Mantenha os cotovelos junto ao tronco e evite impulsionar o movimento com as costas.',
     tempo: '2-0-1-1',
     guide: EXERCISE_GUIDE.barbell_curl,
+    media: createExerciseMedia(
+      'barbell_curl',
+      'Standing EZ-bar bicep curl with elbows fixed at torso sides',
+      'Rosca direta na barra W em pé com cotovelos alinhados ao tronco',
+    ),
   },
   barbell_squat: {
     id: 'barbell_squat',
@@ -276,6 +346,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Desça até as coxas ficarem paralelas ao chão, mantendo os joelhos alinhados com os pés.',
     tempo: '3-1-1-0',
     guide: EXERCISE_GUIDE.barbell_squat,
+    media: createExerciseMedia(
+      'barbell_squat',
+      'Barbell back squat reaching parallel thigh depth',
+      'Agachamento livre com barra atingindo profundidade paralela',
+    ),
   },
   romanian_deadlift: {
     id: 'romanian_deadlift',
@@ -292,6 +367,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Leve o quadril para trás, mantenha os joelhos levemente flexionados e alongue os posteriores da coxa.',
     tempo: '3-1-1-0',
     guide: EXERCISE_GUIDE.romanian_deadlift,
+    media: createExerciseMedia(
+      'romanian_deadlift',
+      'Barbell Romanian deadlift hinging hips with soft knee bend',
+      'Stiff RDL com barra mantendo joelhos semiflexionados e quadril para trás',
+    ),
   },
   leg_press: {
     id: 'leg_press',
@@ -308,6 +388,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Use toda a amplitude sem tirar a lombar do encosto.',
     tempo: '2-1-1-0',
     guide: EXERCISE_GUIDE.leg_press,
+    media: createExerciseMedia(
+      'leg_press',
+      '45 degree leg press machine with lower back supported against pad',
+      'Leg press 45 graus mantendo a lombar totalmente apoiada no encosto',
+    ),
   },
   standing_calf: {
     id: 'standing_calf',
@@ -324,6 +409,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Pause por 2 segundos na parte baixa e por 1 segundo no ponto de contração máxima.',
     tempo: '2-2-1-1',
     guide: EXERCISE_GUIDE.standing_calf,
+    media: createExerciseMedia(
+      'standing_calf',
+      'Standing calf raise on machine showing full ankle plantar flexion',
+      'Gêmeos em pé na máquina executando flexão plantar completa',
+    ),
   },
   hanging_leg_raise: {
     id: 'hanging_leg_raise',
@@ -341,6 +431,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Faça uma retroversão pélvica no ponto alto e evite balançar o corpo.',
     tempo: '2-0-1-1',
     guide: EXERCISE_GUIDE.hanging_leg_raise,
+    media: createExerciseMedia(
+      'hanging_leg_raise',
+      'Hanging leg raise from pull-up bar with controlled pelvic curl',
+      'Elevação de pernas suspenso na barra fixa com retroversão pélvica',
+    ),
   },
   push_up: {
     id: 'push_up',
@@ -357,6 +452,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Mantenha o corpo alinhado da cabeça aos calcanhares e desça com controle.',
     tempo: '2-0-1-0',
     guide: EXERCISE_GUIDE.push_up,
+    media: createExerciseMedia(
+      'push_up',
+      'Bodyweight push-up maintaining straight plank alignment',
+      'Flexão de braço no solo mantendo o corpo alinhado em prancha',
+    ),
   },
   bodyweight_squat: {
     id: 'bodyweight_squat',
@@ -373,6 +473,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Mantenha o pé inteiro apoiado no chão e alinhe os joelhos com os dedos dos pés.',
     tempo: '3-0-1-0',
     guide: EXERCISE_GUIDE.bodyweight_squat,
+    media: createExerciseMedia(
+      'bodyweight_squat',
+      'Bodyweight air squat with feet flat and chest upright',
+      'Agachamento livre com pés firmes no solo e tronco erguido',
+    ),
   },
   reverse_lunge: {
     id: 'reverse_lunge',
@@ -389,6 +494,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Dê um passo para trás com controle e mantenha o joelho da frente estável.',
     tempo: '2-0-1-0',
     guide: EXERCISE_GUIDE.reverse_lunge,
+    media: createExerciseMedia(
+      'reverse_lunge',
+      'Bodyweight reverse lunge stepping back with front knee aligned over ankle',
+      'Avanço reverso com passo controlado mantendo o joelho da frente estável',
+    ),
   },
   glute_bridge: {
     id: 'glute_bridge',
@@ -405,6 +515,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Mantenha as costelas abaixadas e faça uma breve pausa no ponto alto.',
     tempo: '2-1-1-1',
     guide: EXERCISE_GUIDE.glute_bridge,
+    media: createExerciseMedia(
+      'glute_bridge',
+      'Floor glute bridge driving hips up through heels',
+      'Elevação pélvica no solo estendendo o quadril pelos calcanhares',
+    ),
   },
   prone_snow_angels: {
     id: 'prone_snow_angels',
@@ -421,6 +536,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Eleve levemente o peito e mova os braços devagar.',
     tempo: '2-0-2-0',
     guide: EXERCISE_GUIDE.prone_snow_angels,
+    media: createExerciseMedia(
+      'prone_snow_angels',
+      'Prone snow angels lying face down sweeping arms in a wide arc',
+      'Anjos na neve em prono movendo os braços em arco amplo e controlado',
+    ),
   },
   band_row: {
     id: 'band_row',
@@ -437,6 +557,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Prenda o elástico com segurança e puxe os cotovelos em direção às costelas.',
     tempo: '2-1-1-1',
     guide: EXERCISE_GUIDE.band_row,
+    media: createExerciseMedia(
+      'band_row',
+      'Seated or standing resistance band row pulling elbows back along ribs',
+      'Remada com elástico puxando os cotovelos junto às costelas',
+    ),
   },
   band_chest_press: {
     id: 'band_chest_press',
@@ -453,6 +578,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Prenda o elástico atrás de você e empurre sem arquear as costas.',
     tempo: '2-0-1-0',
     guide: EXERCISE_GUIDE.band_chest_press,
+    media: createExerciseMedia(
+      'band_chest_press',
+      'Standing resistance band chest press anchored behind torso',
+      'Supino com elástico em pé com ancoragem atrás do tronco',
+    ),
   },
   band_squat: {
     id: 'band_squat',
@@ -469,6 +599,11 @@ export const EXERCISE_DATABASE: Record<string, Exercise> = {
     notesPt: 'Mantenha o elástico tensionado e alinhe os joelhos com os dedos dos pés.',
     tempo: '3-0-1-0',
     guide: EXERCISE_GUIDE.band_squat,
+    media: createExerciseMedia(
+      'band_squat',
+      'Resistance band squat standing inside band loop with tension at shoulders',
+      'Agachamento com elástico pisando sobre a faixa com tensão nos ombros',
+    ),
   },
 };
 
